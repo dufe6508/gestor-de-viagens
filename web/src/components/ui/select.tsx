@@ -8,6 +8,53 @@ import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
 const Select = SelectPrimitive.Root
 
+/*
+ * Select estilizado padrão do app — popup escuro próprio (base-ui), NUNCA a
+ * lista nativa branca do SO. Trigger full-width h-12 p/ casar com Input.
+ */
+function SelectField({
+  id,
+  value,
+  onValueChange,
+  options,
+  className,
+}: {
+  id?: string
+  value: string
+  onValueChange: (v: string) => void
+  options: { value: string; label: string }[]
+  className?: string
+}) {
+  const items = React.useMemo(
+    () => Object.fromEntries(options.map((o) => [o.value, o.label])),
+    [options]
+  )
+  return (
+    <Select
+      items={items}
+      value={value}
+      onValueChange={(v) => onValueChange(v as string)}
+    >
+      <SelectTrigger
+        id={id}
+        className={cn(
+          "h-12 w-full rounded-md border-white/10 bg-white/[0.04] px-4 text-base backdrop-blur-sm data-[size=default]:h-12",
+          className
+        )}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
     <SelectPrimitive.Group
@@ -189,6 +236,7 @@ function SelectScrollDownButton({
 
 export {
   Select,
+  SelectField,
   SelectContent,
   SelectGroup,
   SelectItem,

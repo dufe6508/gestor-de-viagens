@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { brl } from "@/lib/format";
 
 /*
  * Linguagem única de gráfico — DESIGN.md §6.
@@ -34,6 +35,12 @@ export function DonutProgress({
   return (
     <div className="relative grid place-items-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
+        <defs>
+          <linearGradient id="progress-arc" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#4f9df5" />
+            <stop offset="100%" stopColor="#46c98a" />
+          </linearGradient>
+        </defs>
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -47,7 +54,7 @@ export function DonutProgress({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="var(--primary)"
+          stroke="url(#progress-arc)"
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={c}
@@ -56,7 +63,7 @@ export function DonutProgress({
         />
       </svg>
       <div className="absolute flex flex-col items-center">
-        <span className="text-2xl font-semibold tabular-nums tracking-tight">
+        <span className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
           {Math.round(pct * 100)}%
         </span>
         <span className="text-xs text-faint">recebido</span>
@@ -150,6 +157,135 @@ export function Bars({ points, height = 64 }: { points: BarPoint[]; height?: num
           <span className="truncate text-xs capitalize text-faint">{p.label}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+export interface OverviewBar {
+  label: string;
+  value: number;
+  cor: string;
+}
+
+/** Arredonda p/ um teto "bonito" (1/2/5 × 10ⁿ) — dá folga acima da maior barra. */
+function niceCeil(v: number): number {
+  if (v <= 0) return 1;
+  const pow = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / pow;
+  const s = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  return s * pow;
+}
+
+/** Rótulo de eixo compacto: 12000 → "12k", 3500 → "3.5k". */
+function shortNum(v: number): string {
+  const a = Math.abs(v);
+  if (a >= 1000) {
+    const k = v / 1000;
+    return `${Number.isInteger(k) ? k : k.toFixed(1)}k`;
+  }
+  return String(Math.round(v));
+}
+
+/**
+ * Visão geral — gráfico de barras premium: eixo Y com grade tracejada, barras
+ * com gradiente + glow na própria cor, valor rotulado no topo, hover destaca.
+ * Alinhado num grid (ticks 0→teto em 4 divisões) p/ proporções consistentes.
+ */
+export function OverviewBars({ bars, height = 190 }: { bars: OverviewBar[]; height?: number }) {
+  const [mounted, setMounted] = useState(false);
+  const [hover, setHover] = useState<string | null>(null);
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
+
+  const rawMax = Math.max(...bars.map((b) => Math.abs(b.value)), 1);
+  const top = niceCeil(rawMax);
+  const ticks = [0, 1, 2, 3, 4].map((i) => (top * i) / 4); // ascendente
+
+  return (
+    <div>
+      <div className="flex gap-2.5">
+        {/* Eixo Y — rótulos alinhados às linhas de grade */}
+        <div
+          className="flex w-7 shrink-0 flex-col-reverse justify-between text-right"
+          style={{ height }}
+        >
+          {ticks.map((t) => (
+            <span key={t} className="text-[10px] leading-none tabular-nums text-faint">
+              {shortNum(t)}
+            </span>
+          ))}
+        </div>
+
+        {/* Área do plot */}
+        <div className="relative flex-1" style={{ height }}>
+          {/* Grade tracejada */}
+          {ticks.map((t, i) => (
+            <div
+              key={t}
+              className="absolute inset-x-0 border-t border-dashed"
+              style={{
+                bottom: `${(t / top) * 100}%`,
+                borderColor: i === 0 ? "rgb(255 255 255 / 0.14)" : "rgb(255 255 255 / 0.06)",
+              }}
+            />
+          ))}
+
+          {/* Barras */}
+          <div className="absolute inset-0 flex items-end justify-between gap-3">
+            {bars.map((b, i) => {
+              const pct = (Math.abs(b.value) / top) * 100;
+              const dim = hover != null && hover !== b.label;
+              return (
+                <div
+                  key={b.label}
+                  className="relative flex h-full flex-1 items-end justify-center"
+                  onPointerEnter={() => setHover(b.label)}
+                  onPointerLeave={() => setHover(null)}
+                >
+                  <div
+                    className="relative w-[62%] max-w-11 transition-[height,opacity,filter] duration-700 ease-(--ease-swift) motion-reduce:transition-none"
+                    style={{
+                      height: mounted ? `${Math.max(pct, 1.5)}%` : "0%",
+                      minHeight: 6,
+                      borderRadius: "16px 16px 4px 4px",
+                      backgroundImage: `linear-gradient(180deg, ${b.cor}, ${b.cor}c0)`,
+                      boxShadow: `0 0 10px -6px ${b.cor}55, inset 0 1px 0 rgb(255 255 255 / 0.16)`,
+                      opacity: dim ? 0.4 : 1,
+                      filter: hover === b.label ? "brightness(1.12)" : "none",
+                      transitionDelay: mounted ? "0ms" : `${i * 80}ms`,
+                    }}
+                  >
+                    <span
+                      className="money absolute -top-5 left-1/2 -translate-x-1/2 text-[11px] font-semibold whitespace-nowrap tabular-nums"
+                      style={{ color: b.cor }}
+                    >
+                      {brl(b.value)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Rótulos X — alinhados sob as barras (offset do eixo Y) */}
+      <div className="mt-2.5 flex gap-2.5">
+        <div className="w-7 shrink-0" />
+        <div className="flex flex-1 justify-between gap-3">
+          {bars.map((b) => (
+            <span
+              key={b.label}
+              className="flex-1 truncate text-center text-[11px] text-faint"
+              style={{ color: hover === b.label ? b.cor : undefined }}
+            >
+              {b.label}
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

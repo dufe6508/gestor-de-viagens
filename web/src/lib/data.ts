@@ -42,6 +42,19 @@ export async function createExcursao(input: {
   return data as Excursao;
 }
 
+// Regra CLAUDE.md §"histórico": nada se apaga. Só exclui excursão VAZIA
+// (sem passageiros nem despesas) — o resto tem histórico e é bloqueado.
+export async function deleteExcursao(id: string): Promise<void> {
+  const [{ count: pax }, { count: desp }] = await Promise.all([
+    supabase.from("passageiro").select("id", { count: "exact", head: true }).eq("excursao_id", id),
+    supabase.from("despesa").select("id", { count: "exact", head: true }).eq("excursao_id", id),
+  ]);
+  if ((pax ?? 0) > 0 || (desp ?? 0) > 0)
+    throw new Error("Excursão tem lançamentos — não pode ser excluída.");
+  const { error } = await supabase.from("excursao").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 export interface ResumoGeral {
   total_a_receber: number;
   total_recebido: number;

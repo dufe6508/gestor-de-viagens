@@ -93,20 +93,20 @@ function NavItem({
       {/* pílula ativa — cresce por trás do ícone */}
       <span
         aria-hidden
-        className={`absolute inset-0 rounded-[20px] bg-primary/14 ring-1 ring-inset ring-primary/25 transition-all duration-300 ease-(--ease-enter) ${
+        className={`absolute inset-0 rounded-[20px] bg-white/8 transition-all duration-300 ease-(--ease-enter) ${
           active ? "scale-100 opacity-100" : "scale-90 opacity-0"
         }`}
       />
       <Icon
         className={`relative size-[22px] transition-colors duration-200 ${
-          active ? "text-primary" : "text-faint"
+          active ? "text-foreground" : "text-faint"
         }`}
         strokeWidth={active ? 2 : 1.75}
         aria-hidden
       />
       <span
         className={`relative text-[10px] font-medium leading-none transition-colors duration-200 ${
-          active ? "text-primary" : "text-faint"
+          active ? "text-foreground" : "text-faint"
         }`}
       >
         {label}

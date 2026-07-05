@@ -42,7 +42,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { NativeSelect } from "@/components/ui/native-select";
+import { SelectField } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -316,7 +316,7 @@ function DespesasView() {
             )}
 
             {/* Hero de resumo — total + indicadores em linha */}
-            <section className="surface rounded-lg p-5">
+            <section className="glass-card rounded-lg p-5">
               <p className="text-sm text-muted-foreground">Total gasto</p>
               <p className="money mt-1.5 text-[2.25rem] font-semibold leading-none text-foreground">
                 {brl(total)}
@@ -348,7 +348,7 @@ function DespesasView() {
             ) : (
               <>
                 {/* Composição de gastos — donut compacto + legenda */}
-                <section className="surface rounded-lg p-5">
+                <section className="surface-soft rounded-lg p-5">
                   <div className="mb-1 flex items-baseline justify-between">
                     <p className="text-sm font-medium text-muted-foreground">Composição</p>
                     {fCategoria && (
@@ -772,17 +772,12 @@ function DespesaDialog({
           {excursoes.length > 1 && (
             <div className="space-y-1.5">
               <Label htmlFor="d-exc">Excursão</Label>
-              <NativeSelect
+              <SelectField
                 id="d-exc"
                 value={form.excursao_id}
-                onChange={(e) => setForm({ ...form, excursao_id: e.target.value })}
-              >
-                {excursoes.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.nome}
-                  </option>
-                ))}
-              </NativeSelect>
+                onValueChange={(v) => setForm({ ...form, excursao_id: v })}
+                options={excursoes.map((e) => ({ value: e.id, label: e.nome }))}
+              />
             </div>
           )}
         </div>
@@ -838,14 +833,15 @@ function FiltrosDialog({
         <div className="space-y-4 py-1">
           <div className="space-y-1.5">
             <Label htmlFor="f-exc">Excursão</Label>
-            <NativeSelect id="f-exc" value={fExcursao} onChange={(e) => setFExcursao(e.target.value)}>
-              <option value="todas">Todas</option>
-              {excursoes.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.nome}
-                </option>
-              ))}
-            </NativeSelect>
+            <SelectField
+              id="f-exc"
+              value={fExcursao}
+              onValueChange={setFExcursao}
+              options={[
+                { value: "todas", label: "Todas" },
+                ...excursoes.map((e) => ({ value: e.id, label: e.nome })),
+              ]}
+            />
           </div>
 
           <div className="space-y-1.5">

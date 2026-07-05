@@ -31,7 +31,7 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/50 duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 data-closed:duration-150",
+        "fixed inset-0 isolate z-50 bg-black/80 backdrop-blur-sm duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 data-closed:duration-150",
         className
       )}
       {...props}
@@ -61,7 +61,7 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "z-50 grid w-full gap-4 bg-popover/97 p-5 text-sm text-card-foreground shadow-[0_-8px_40px_-8px_rgb(0_0_0_/_0.6)] backdrop-blur-2xl outline-none",
+          "relative z-50 grid w-full gap-4 bg-[#0a0d0c]/95 p-5 text-sm text-card-foreground shadow-[0_-8px_40px_-8px_rgb(0_0_0_/_0.8),inset_0_1px_0_rgb(255_255_255_/_0.07)] backdrop-blur-2xl outline-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           isSheet
             ? "fixed inset-x-0 bottom-0 mx-auto max-h-[92dvh] max-w-md overflow-y-auto rounded-t-xl border border-b-0 border-border pb-[max(1.25rem,env(safe-area-inset-bottom))] duration-300 ease-(--ease-drawer) data-open:animate-in data-open:slide-in-from-bottom-full data-closed:animate-out data-closed:slide-out-to-bottom-full data-closed:duration-200"
             : "fixed top-1/2 left-1/2 max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border duration-200 ease-(--ease-swift) data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-closed:duration-150 sm:max-w-sm",
@@ -69,6 +69,11 @@ function DialogContent({
         )}
         {...props}
       >
+        {/* brilho especular no topo — dá o toque de vidro */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
+        />
         {isSheet && (
           <div
             aria-hidden

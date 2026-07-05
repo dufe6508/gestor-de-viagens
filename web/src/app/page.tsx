@@ -1,26 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   ChevronDown,
   Plus,
   MapPin,
   Check,
-  ChevronRight,
-  TriangleAlert,
   CalendarDays,
+  Trash2,
+  TriangleAlert,
+  X,
 } from "lucide-react";
 import {
   listExcursoes,
   createExcursao,
+  deleteExcursao,
   getResumo,
   listPassageiros,
 } from "@/lib/data";
 import type { Excursao, ResumoExcursao, PassageiroRow } from "@/lib/types";
 import { brl } from "@/lib/format";
-import { DonutProgress } from "@/components/charts";
+import { DonutProgress, OverviewBars } from "@/components/charts";
 import { Fab } from "@/components/fab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +54,7 @@ function dataCurta(data: string | null | undefined): string {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [excursoes, setExcursoes] = useState<Excursao[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resumo, setResumo] = useState<ResumoExcursao | null>(null);
@@ -62,6 +65,8 @@ export default function HomePage() {
   const [novaOpen, setNovaOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ nome: "", destino: "", data_inicio: "", data_fim: "" });
+  const [excluindo, setExcluindo] = useState<Excursao | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const loadExcursoes = useCallback(async () => {
     try {
@@ -125,13 +130,77 @@ export default function HomePage() {
     }
   }
 
+  async function handleDelete() {
+    if (!excluindo) return;
+    setDeleting(true);
+    try {
+      await deleteExcursao(excluindo.id);
+      toast.success("Excursão excluída");
+      setExcluindo(null);
+      if (selectedId === excluindo.id) setSelectedId(null);
+      await loadExcursoes();
+    } catch (e) {
+      toast.error("Não foi possível excluir", { description: String((e as Error).message) });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const selected = excursoes.find((e) => e.id === selectedId) ?? null;
   const atrasados = passageiros.filter((p) => p.status_pagamento === "atrasado").length;
   const aReceber = resumo?.total_a_receber ?? 0;
   const recebido = resumo?.total_recebido ?? 0;
   const caixa = recebido - (resumo?.despesas_pagas ?? 0);
   const falta = Math.max(aReceber - recebido, 0);
+  const totalDespesas = resumo?.total_despesas ?? 0;
+  const lucro = aReceber - totalDespesas;
   const dias = diasAte(selected?.data_inicio);
+
+  // Passageiros em atraso viram um toast cancelável (X), não um card fixo.
+  const atrasoRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selected) return;
+    const key = `${selected.id}:${atrasados}`;
+    if (atrasados > 0 && atrasoRef.current !== key) {
+      atrasoRef.current = key;
+      toast.custom(
+        (t) => (
+          <div
+            className="mx-auto inline-flex w-fit items-center gap-2.5 rounded-full border border-[#f2564b]/30 py-1.5 pr-2 pl-3 shadow-[0_6px_18px_-12px_rgba(0,0,0,0.6)]"
+            style={{
+              backgroundColor: "#1a0d0c",
+              backgroundImage:
+                "linear-gradient(150deg, rgba(242,86,75,0.12), rgba(242,86,75,0.02) 58%)",
+            }}
+          >
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#f2564b]/20">
+              <TriangleAlert className="size-3.5 text-[#ff6a5f]" strokeWidth={2.4} />
+            </span>
+            <span className="whitespace-nowrap text-[13px] font-semibold text-white">
+              {atrasados} em atraso
+            </span>
+            <button
+              onClick={() => {
+                router.push(`/excursao?id=${selected.id}`);
+                toast.dismiss(t);
+              }}
+              className="ml-1 rounded-full bg-[#f2564b] px-3.5 py-1 text-xs font-semibold text-white transition-transform duration-150 hover:bg-[#ff6a5f] active:scale-95"
+            >
+              Ver
+            </button>
+            <button
+              onClick={() => toast.dismiss(t)}
+              aria-label="Fechar"
+              className="grid size-6 shrink-0 place-items-center rounded-full text-white/45 transition-colors duration-150 hover:bg-white/10 hover:text-white"
+            >
+              <X className="size-3.5" strokeWidth={2.5} />
+            </button>
+          </div>
+        ),
+        { id: `atraso-${selected.id}`, duration: Infinity },
+      );
+    }
+  }, [selected, atrasados, router]);
 
   return (
     <>
@@ -168,9 +237,7 @@ export default function HomePage() {
             </button>
 
             {/* 2. Herói — saldo em caixa */}
-            <section className="surface relative overflow-hidden rounded-lg p-6">
-              {/* brilho especular sutil no topo */}
-              <div className="pointer-events-none absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            <section className="glass-card rounded-lg p-6">
               <p className="text-sm text-muted-foreground">Saldo em caixa</p>
               <p
                 className={`money mt-2 text-[2.5rem] font-semibold leading-none ${
@@ -192,30 +259,23 @@ export default function HomePage() {
             </section>
 
             {/* 3. Progresso de recebimento */}
-            <section className="surface flex items-center gap-5 rounded-lg p-5">
+            <section className="glass-card glass-card-soft flex items-center gap-5 rounded-lg p-5">
               <DonutProgress recebido={recebido} total={aReceber} />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-faint">Falta receber</p>
-                <p className="money mt-1 text-2xl font-semibold">{brl(falta)}</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  de <span className="money">{brl(aReceber)}</span> no total
-                </p>
+              <div className="min-w-0 flex-1 space-y-3.5">
+                <div>
+                  <p className="text-xs text-faint">Recebido</p>
+                  <p className="money mt-0.5 text-xl font-semibold" style={{ color: "var(--progress, #46c98a)" }}>
+                    {brl(recebido)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-faint">Falta receber</p>
+                  <p className="money mt-0.5 text-xl font-semibold">{brl(falta)}</p>
+                </div>
               </div>
             </section>
 
-            {/* 4. Precisa de atenção — linha compacta */}
-            {atrasados > 0 && (
-              <Link
-                href={`/excursao?id=${selected.id}`}
-                className="surface flex items-center gap-2.5 rounded-lg border-destructive/25! bg-destructive/8! px-3 py-2.5 transition-colors duration-150 hover:bg-destructive/12!"
-              >
-                <TriangleAlert className="size-4 shrink-0 text-destructive" strokeWidth={2} />
-                <span className="flex-1 text-[13px] font-medium text-destructive">
-                  {atrasados} passageiro{atrasados > 1 ? "s" : ""} em atraso
-                </span>
-                <ChevronRight className="size-4 shrink-0 text-destructive/60" strokeWidth={1.75} />
-              </Link>
-            )}
+            {/* Atraso agora é toast cancelável (efeito acima). */}
 
             {/* 5. Linha do tempo — linha compacta */}
             {dias != null && (
@@ -239,6 +299,19 @@ export default function HomePage() {
                 )}
               </section>
             )}
+
+            {/* 6. Visão geral — barras comparativas */}
+            <section className="surface rounded-lg p-5">
+              <p className="mb-5 text-sm font-medium text-muted-foreground">Visão geral</p>
+              <OverviewBars
+                bars={[
+                  { label: "A receber", value: aReceber, cor: "#6b7280" },
+                  { label: "Recebido", value: recebido, cor: "#22c55e" },
+                  { label: "Despesas", value: totalDespesas, cor: "#f87171" },
+                  { label: "Lucro", value: lucro, cor: "#22c55e" },
+                ]}
+              />
+            </section>
           </div>
         )}
       </main>
@@ -259,15 +332,18 @@ export default function HomePage() {
             {excursoes.map((e) => {
               const active = e.id === selectedId;
               return (
-                <li key={e.id}>
+                <li
+                  key={e.id}
+                  className={`group flex items-center rounded-md transition-colors duration-150 ${
+                    active ? "bg-primary/12 ring-1 ring-inset ring-primary/25" : "hover:bg-white/[0.04]"
+                  }`}
+                >
                   <button
                     onClick={() => {
                       setSelectedId(e.id);
                       setSwitchOpen(false);
                     }}
-                    className={`flex w-full items-center gap-3 rounded-md p-3 text-left transition-colors duration-150 ${
-                      active ? "bg-primary/12 ring-1 ring-inset ring-primary/25" : "hover:bg-white/[0.04]"
-                    }`}
+                    className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left"
                   >
                     <span
                       className={`grid size-9 shrink-0 place-items-center rounded-full ${
@@ -281,6 +357,13 @@ export default function HomePage() {
                       <p className="truncate text-xs text-faint">{e.destino || "Sem destino"}</p>
                     </div>
                     {active && <Check className="size-4 shrink-0 text-primary" />}
+                  </button>
+                  <button
+                    onClick={() => setExcluindo(e)}
+                    aria-label={`Excluir ${e.nome}`}
+                    className="mr-2 grid size-9 shrink-0 place-items-center rounded-full text-faint transition-colors duration-150 hover:bg-destructive/12 hover:text-destructive"
+                  >
+                    <Trash2 className="size-4" strokeWidth={1.75} />
                   </button>
                 </li>
               );
@@ -350,6 +433,27 @@ export default function HomePage() {
           <DialogFooter>
             <Button onClick={handleCreate} disabled={saving} className="w-full" size="lg">
               {saving ? "Criando…" : "Criar excursão"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Excluir excursão */}
+      <Dialog open={excluindo != null} onOpenChange={(o) => !o && setExcluindo(null)}>
+        <DialogContent variant="sheet">
+          <DialogHeader>
+            <DialogTitle>Excluir excursão</DialogTitle>
+          </DialogHeader>
+          <p className="py-1 text-sm text-muted-foreground">
+            Excluir <span className="font-semibold text-foreground">{excluindo?.nome}</span>? Só é
+            possível se ela não tiver passageiros nem despesas. Esta ação não pode ser desfeita.
+          </p>
+          <DialogFooter className="flex-row gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setExcluindo(null)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" className="flex-1" disabled={deleting} onClick={handleDelete}>
+              {deleting ? "Excluindo…" : "Excluir"}
             </Button>
           </DialogFooter>
         </DialogContent>
