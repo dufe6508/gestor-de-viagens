@@ -1,0 +1,20 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Tooling
+.impeccable/
+
+# Node (web/ tem o próprio .gitignore; isto é segurança extra)
+node_modules/
+
+# Segredos — nunca versionar
+.env
+.env.*
+
+# Vercel
+.vercel
+
+# Build outputs
+.next/
+out/
