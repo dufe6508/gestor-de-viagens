@@ -55,28 +55,29 @@ export const CATEGORIA_ICONS: Record<string, LucideIcon> = {
 
 export const ICON_OPTIONS = Object.keys(CATEGORIA_ICONS);
 
-// Paleta de cores p/ categorias — dessaturada de propósito (DESIGN.md §6):
-// distinguíveis entre si, mas nenhuma grita mais que o acento sage do app.
+// Paleta de cores p/ categorias — matizes vivas mas normalizadas (DESIGN.md §6):
+// muteColor() fixa saturação/luminosidade, então aqui só a MATIZ importa.
+// Espectro completo, sem cinza — cada categoria puxa uma cor viva distinta.
 export const COR_OPTIONS = [
-  "#9c96c9", // lavanda
-  "#7fa3c4", // azul
-  "#74b3ba", // ciano
-  "#8fae94", // sage
-  "#a9b378", // oliva
-  "#c9a86a", // âmbar
-  "#c98f70", // terracota
-  "#c491a9", // rosa
-  "#8b9bc4", // índigo
-  "#c67b6f", // vermelho
-  "#ab8fc4", // roxo claro
-  "#95a09a", // cinza
+  "#7b6ef0", // violeta
+  "#4f9df5", // azul
+  "#29b9c9", // ciano
+  "#46b97e", // verde
+  "#a7c34a", // lima
+  "#e0a53a", // âmbar
+  "#e07a4e", // terracota
+  "#e06b9c", // rosa
+  "#6d7ff0", // índigo
+  "#e05c5c", // vermelho
+  "#9a6bf0", // roxo
+  "#57b8a0", // teal
 ];
 
 /**
- * Teto de saturação — DESIGN.md §6.
- * Qualquer cor de categoria (inclusive dados antigos saturados) é puxada para
- * um tom calmo: mantém a matiz, limita saturação e fixa luminosidade confortável.
- * Assim o donut/legenda nunca "gritam" nem viram arco-íris genérico.
+ * Normalizador de cor — DESIGN.md §6 (revisado: vivo, não pastel).
+ * Mantém a matiz da categoria e fixa saturação/luminosidade num tom vivo e
+ * consistente. Dados antigos pálidos sobem; matizes gritantes descem — todos
+ * pousam no mesmo nível de vivacidade, então o donut nunca vira arco-íris.
  */
 export function muteColor(hex: string): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
@@ -98,8 +99,8 @@ export function muteColor(hex: string): string {
     h *= 60;
     if (h < 0) h += 360;
   }
-  s = Math.min(s, 0.4); // teto de saturação
-  const l = 0.66; // luminosidade fixa e confortável no dark
+  s = Math.max(Math.min(s, 0.62), 0.5); // faixa de saturação viva
+  const l = 0.6; // luminosidade fixa, viva no dark
   const c = (1 - Math.abs(2 * l - 1)) * s;
   const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
   const mm = l - c / 2;

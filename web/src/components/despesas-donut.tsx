@@ -23,8 +23,8 @@ export function DespesasDonut({
   quantidade,
   selectedId,
   onSelect,
-  size = 168,
-  stroke = 26,
+  size = 208,
+  stroke = 30,
 }: {
   segments: DonutSegment[];
   total: number;
@@ -86,7 +86,7 @@ export function DespesasDonut({
       <button
         type="button"
         onClick={() => onSelect(null)}
-        className="absolute flex flex-col items-center px-6 text-center"
+        className="absolute flex flex-col items-center px-3 text-center"
         aria-label="Ver total"
       >
         {focus ? (
