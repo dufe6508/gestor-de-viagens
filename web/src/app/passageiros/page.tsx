@@ -64,10 +64,12 @@ const ORDENS = [
 
 const PAGE_SIZE = 20;
 
-// Categoria no cadastro (opcional). Sem categoria = vaga normal.
-type Tipo = "familia" | "infantil";
-const VALOR_NORMAL = 1450;
-const VALOR_TIPO: Record<Tipo, number> = { familia: 650, infantil: 0 };
+// Preços-padrão do "Definir valor" em massa — editáveis, só sugestão inicial.
+const PRECOS_PADRAO = [
+  { key: "normal", label: "Normal", default: 1450 },
+  { key: "familia", label: "Família", default: 650 },
+  { key: "infantil", label: "Infantil", default: 0 },
+] as const;
 
 // "YYYY-MM-DD" → "dd/mm"
 const ddmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
@@ -93,14 +95,15 @@ function PassageirosView() {
   const [selecionando, setSelecionando] = useState(false);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [valorOpen, setValorOpen] = useState(false);
-  const [valorStr, setValorStr] = useState("");
-  const [aplicando, setAplicando] = useState(false);
+  const [precos, setPrecos] = useState<Record<string, string>>(() =>
+    Object.fromEntries(PRECOS_PADRAO.map((p) => [p.key, p.default.toFixed(2).replace(".", ",")])),
+  );
+  const [aplicandoKey, setAplicandoKey] = useState<string | null>(null);
   const [parcelarOpen, setParcelarOpen] = useState(false);
 
   // novo passageiro
   const [novoOpen, setNovoOpen] = useState(false);
   const [nome, setNome] = useState("");
-  const [tipo, setTipo] = useState<Tipo | null>(null);
   const [salvando, setSalvando] = useState(false);
   const nomeRef = useRef<HTMLInputElement>(null);
 
@@ -184,21 +187,20 @@ function PassageirosView() {
     [passageiros, sel],
   );
 
-  async function aplicarValor() {
-    const v = parseValor(valorStr);
-    if (Number.isNaN(v) || v <= 0) return toast.error("Valor inválido");
-    setAplicando(true);
+  async function aplicarPreco(key: string) {
+    const v = parseValor(precos[key] ?? "");
+    if (Number.isNaN(v) || v < 0) return toast.error("Valor inválido");
+    setAplicandoKey(key);
     try {
       await bulkSetValor([...sel], v);
       toast.success(`Valor de ${brl(v)} aplicado a ${sel.size} passageiro${sel.size > 1 ? "s" : ""}`);
       setValorOpen(false);
-      setValorStr("");
       limparSelecao();
       load();
     } catch (e) {
       toast.error("Erro ao aplicar valor", { description: String((e as Error).message) });
     } finally {
-      setAplicando(false);
+      setAplicandoKey(null);
     }
   }
 
@@ -228,13 +230,11 @@ function PassageirosView() {
 
   async function adicionar(continuar: boolean) {
     if (!nome.trim()) return toast.error("Informe o nome");
-    const valor = tipo ? VALOR_TIPO[tipo] : VALOR_NORMAL;
     setSalvando(true);
     try {
-      await addPassageiro(excursaoId, nome.trim(), valor);
+      await addPassageiro(excursaoId, nome.trim());
       toast.success(`${nome.trim()} adicionado`);
       setNome("");
-      setTipo(null);
       if (continuar) nomeRef.current?.focus();
       else setNovoOpen(false);
       load();
@@ -478,7 +478,7 @@ function PassageirosView() {
                               </span>
                               {!quitado && p.proximo_vencimento && (
                                 <span className={`shrink-0 tabular-nums ${vencCor}`}>
-                                  venc. {ddmm(p.proximo_vencimento)}
+                                  Venc. {ddmm(p.proximo_vencimento)}
                                 </span>
                               )}
                             </div>
@@ -560,61 +560,22 @@ function PassageirosView() {
       )}
 
       {/* Novo passageiro — cadastro em série */}
-      <Dialog
-        open={novoOpen}
-        onOpenChange={(o) => {
-          setNovoOpen(o);
-          if (!o) setTipo(null);
-        }}
-      >
+      <Dialog open={novoOpen} onOpenChange={setNovoOpen}>
         <DialogContent variant="sheet">
           <DialogHeader>
             <DialogTitle>Novo passageiro</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-1">
-            <div className="space-y-1.5">
-              <Label htmlFor="p-nome">Nome</Label>
-              <Input
-                id="p-nome"
-                ref={nomeRef}
-                placeholder="Ex: Maria da Silva"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && adicionar(true)}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Categoria (opcional)</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {(["familia", "infantil"] as Tipo[]).map((t) => {
-                  const ativo = tipo === t;
-                  return (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setTipo((cur) => (cur === t ? null : t))}
-                      aria-pressed={ativo}
-                      className={`flex flex-col items-start gap-0.5 rounded-lg border px-3.5 py-3 text-left transition-colors ${
-                        ativo
-                          ? "border-primary bg-white/[0.06]"
-                          : "border-border hover:bg-white/[0.03]"
-                      }`}
-                    >
-                      <span className="text-sm font-medium">
-                        {t === "familia" ? "Família" : "Infantil"}
-                      </span>
-                      <span className="money text-xs text-faint">
-                        {VALOR_TIPO[t] > 0 ? brl(VALOR_TIPO[t]) : "Grátis"}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-xs text-faint">
-                Sem categoria = vaga normal ({brl(VALOR_NORMAL)}). Ajustável depois.
-              </p>
-            </div>
+          <div className="space-y-1.5 py-1">
+            <Label htmlFor="p-nome">Nome</Label>
+            <Input
+              id="p-nome"
+              ref={nomeRef}
+              placeholder="Ex: Maria da Silva"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && adicionar(true)}
+              autoFocus
+            />
           </div>
           <DialogFooter>
             <Button variant="secondary" disabled={salvando} onClick={() => adicionar(true)}>
@@ -627,7 +588,7 @@ function PassageirosView() {
         </DialogContent>
       </Dialog>
 
-      {/* Valor em massa */}
+      {/* Valor em massa — 3 preços-padrão, compacto */}
       <Dialog open={valorOpen} onOpenChange={setValorOpen}>
         <DialogContent variant="sheet">
           <DialogHeader>
@@ -635,22 +596,31 @@ function PassageirosView() {
               Definir valor — {sel.size} passageiro{sel.size === 1 ? "" : "s"}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-1.5 py-1">
-            <Label htmlFor="p-valor">Valor por passageiro (R$)</Label>
-            <Input
-              id="p-valor"
-              inputMode="decimal"
-              placeholder="1.450,00"
-              value={valorStr}
-              onChange={(e) => setValorStr(e.target.value)}
-              autoFocus
-            />
+          <div className="space-y-2 py-1">
+            {PRECOS_PADRAO.map((p) => (
+              <div key={p.key} className="flex items-center gap-2">
+                <Label htmlFor={`preco-${p.key}`} className="w-16 shrink-0 text-sm">
+                  {p.label}
+                </Label>
+                <Input
+                  id={`preco-${p.key}`}
+                  inputMode="decimal"
+                  value={precos[p.key]}
+                  onChange={(e) => setPrecos((cur) => ({ ...cur, [p.key]: e.target.value }))}
+                  className="h-10 flex-1"
+                />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={aplicandoKey != null}
+                  onClick={() => aplicarPreco(p.key)}
+                  className="shrink-0"
+                >
+                  {aplicandoKey === p.key ? "…" : "Aplicar"}
+                </Button>
+              </div>
+            ))}
           </div>
-          <DialogFooter>
-            <Button onClick={aplicarValor} disabled={aplicando} className="w-full" size="lg">
-              {aplicando ? "Aplicando…" : "Aplicar valor"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
