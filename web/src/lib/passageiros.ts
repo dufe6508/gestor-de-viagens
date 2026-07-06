@@ -330,6 +330,12 @@ export async function deletePagamento(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// Desfaz uma parcela: remove os pagamentos vinculados a ela (volta a "em aberto").
+export async function desfazerParcela(parcelaId: string): Promise<void> {
+  const { error } = await supabase.from("pagamento").delete().eq("parcela_id", parcelaId);
+  if (error) throw error;
+}
+
 // FKs sem cascade — ordem obrigatória: pagamentos → parcelas → passageiro.
 export async function deletePassageiro(id: string): Promise<void> {
   const { error: e1 } = await supabase.from("pagamento").delete().eq("passageiro_id", id);

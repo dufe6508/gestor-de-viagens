@@ -2,24 +2,24 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   ArrowLeft,
   CheckSquare,
   ChevronLeft,
   ChevronRight,
+  CircleDollarSign,
   Plus,
   Search,
   Users,
-  Zap,
 } from "lucide-react";
 import {
   listPassageiros,
   addPassageiro,
   bulkSetValor,
   parcelar,
-  pagarProximaParcela,
+  getPassageiroDetalhe,
   parseValor,
   type PassageiroRow,
   type StatusPagamento,
@@ -28,12 +28,14 @@ import { getExcursao, getResumo } from "@/lib/data";
 import type { Excursao, ResumoExcursao } from "@/lib/types";
 import { brl } from "@/lib/format";
 import { haptic } from "@/lib/utils";
+import { StatusBadge, derivarStatus } from "@/components/status-badge";
 import { ParcelamentoDialog } from "@/components/parcelamento-dialog";
+import { PassageiroDetalhe } from "@/components/passageiro-detalhe";
+import { PagamentoFlow, type FlowTarget } from "@/components/pagamento-flow";
 import { Fab } from "@/components/fab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { SelectField } from "@/components/ui/select";
 import {
   Dialog,
@@ -62,18 +64,11 @@ const ORDENS = [
 
 const PAGE_SIZE = 20;
 
-const BADGE: Record<StatusPagamento, { variant: "success" | "destructive" | "secondary"; label: string }> = {
-  quitado: { variant: "success", label: "Quitado" },
-  atrasado: { variant: "destructive", label: "Atrasado" },
-  em_dia: { variant: "secondary", label: "Em dia" },
-};
-
 // "YYYY-MM-DD" → "dd/mm"
 const ddmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 
 function PassageirosView() {
   const excursaoId = useSearchParams().get("id") ?? "";
-  const router = useRouter();
 
   const [excursao, setExcursao] = useState<Excursao | null>(null);
   const [resumo, setResumo] = useState<ResumoExcursao | null>(null);
@@ -84,6 +79,10 @@ function PassageirosView() {
   const [fStatus, setFStatus] = useState<FiltroStatus>("todos");
   const [ordem, setOrdem] = useState<Ordem>("nome");
   const [pagina, setPagina] = useState(1);
+
+  // modal de detalhe + fluxo de pagamento
+  const [detalheId, setDetalheId] = useState<string | null>(null);
+  const [flowTarget, setFlowTarget] = useState<FlowTarget | null>(null);
 
   // modo seleção
   const [selecionando, setSelecionando] = useState(false);
@@ -120,6 +119,12 @@ function PassageirosView() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
+
+  // Fundo corporativo chapado (sem glow) só nesta tela.
+  useEffect(() => {
+    document.body.classList.add("flat-bg");
+    return () => document.body.classList.remove("flat-bg");
+  }, []);
 
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -204,18 +209,14 @@ function PassageirosView() {
     }
   }
 
-  // ---- ações por linha ----
-  async function pagar(p: PassageiroRow) {
+  // Botão de pagamento por linha → abre o fluxo (integral ou menu de parcelas).
+  async function abrirPagamento(p: PassageiroRow) {
     haptic();
     try {
-      const r = await pagarProximaParcela(p.id);
-      if (!r) toast.info("Sem parcela em aberto");
-      else {
-        toast.success(`Parcela ${r.numero} · ${brl(r.valor)} recebida`);
-        load();
-      }
+      const det = await getPassageiroDetalhe(p.id);
+      setFlowTarget({ id: p.id, nome: p.nome, saldo: det.passageiro.saldo, parcelas: det.parcelas });
     } catch (e) {
-      toast.error("Erro ao registrar pagamento", { description: String((e as Error).message) });
+      toast.error("Erro ao abrir pagamento", { description: String((e as Error).message) });
     }
   }
 
@@ -285,27 +286,36 @@ function PassageirosView() {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Resumo financeiro */}
-            <section className="glass-card glass-card-soft grid grid-cols-3 gap-1 rounded-lg p-4">
-              <div className="min-w-0">
-                <p className="text-xs text-faint">Recebido</p>
-                <p className="money mt-0.5 truncate text-sm font-semibold text-success">
-                  {brl(recebido)}
-                </p>
+            {/* Hero financeiro — respiro + hierarquia */}
+            <section className="rounded-xl border border-border bg-white/[0.02] p-5">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-faint">
+                Falta receber
+              </p>
+              <p className="money mt-1 text-[2rem] font-semibold leading-none">{brl(Math.max(falta, 0))}</p>
+
+              <div className="mt-4 flex items-center gap-3">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
+                  <div
+                    className="h-full rounded-full bg-success"
+                    style={{ width: `${aReceber > 0 ? Math.min(100, (recebido / aReceber) * 100) : 0}%` }}
+                  />
+                </div>
+                <span className="shrink-0 text-xs tabular-nums text-faint">
+                  {aReceber > 0 ? Math.round((recebido / aReceber) * 100) : 0}%
+                </span>
               </div>
-              <div className="min-w-0">
-                <p className="text-xs text-faint">A receber</p>
-                <p className="money mt-0.5 truncate text-sm font-semibold">{brl(aReceber)}</p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-faint">Falta</p>
-                <p
-                  className={`money mt-0.5 truncate text-sm font-semibold ${
-                    falta > 0 ? "text-destructive" : "text-faint"
-                  }`}
-                >
-                  {brl(falta)}
-                </p>
+
+              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-faint">Recebido</p>
+                  <p className="money mt-0.5 truncate text-[15px] font-semibold text-success">
+                    {brl(recebido)}
+                  </p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-faint">Total</p>
+                  <p className="money mt-0.5 truncate text-[15px] font-semibold">{brl(aReceber)}</p>
+                </div>
               </div>
             </section>
 
@@ -399,13 +409,18 @@ function PassageirosView() {
                 Nenhum resultado para {busca.trim() ? `“${busca.trim()}”` : "esse filtro"}.
               </p>
             ) : (
-              <section className="glass-card glass-card-soft overflow-hidden rounded-xl">
-                <ul className="divide-y divide-white/[0.06]">
+              <section className="overflow-hidden rounded-xl border border-border bg-white/[0.02]">
+                <ul className="divide-y divide-border">
                   {visiveis.map((p, i) => {
-                    const quitado = p.status_pagamento === "quitado";
-                    const atrasado = p.status_pagamento === "atrasado";
-                    const badge = BADGE[p.status_pagamento];
+                    const kind = derivarStatus(p);
+                    const quitado = kind === "quitado";
                     const marcado = sel.has(p.id);
+                    const vencCor =
+                      kind === "atrasado"
+                        ? "text-destructive"
+                        : kind === "vence_hoje" || kind === "vence_breve"
+                          ? "text-warning"
+                          : "text-faint";
                     return (
                       <li key={p.id}>
                         <div
@@ -414,16 +429,16 @@ function PassageirosView() {
                           aria-label={`Abrir ${p.nome}`}
                           onClick={() => {
                             if (selecionando) toggleSel(p.id);
-                            else router.push("/passageiro?id=" + p.id);
+                            else setDetalheId(p.id);
                           }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
                               if (selecionando) toggleSel(p.id);
-                              else router.push("/passageiro?id=" + p.id);
+                              else setDetalheId(p.id);
                             }
                           }}
-                          className={`flex min-h-[64px] cursor-pointer items-center gap-3 px-4 py-3 outline-none transition-colors duration-150 hover:bg-white/[0.03] focus-visible:bg-white/[0.05] active:scale-[0.997] ${
+                          className={`flex min-h-[68px] cursor-pointer items-center gap-3.5 px-4 py-3.5 outline-none transition-colors duration-150 hover:bg-white/[0.025] focus-visible:bg-white/[0.05] ${
                             marcado ? "bg-white/[0.05]" : ""
                           }`}
                         >
@@ -437,31 +452,29 @@ function PassageirosView() {
                               aria-label={`Selecionar ${p.nome}`}
                             />
                           ) : (
-                            <span className="w-6 shrink-0 text-center text-[13px] tabular-nums text-faint">
+                            <span className="w-5 shrink-0 text-center text-[13px] tabular-nums text-faint">
                               {inicio + i + 1}
                             </span>
                           )}
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="truncate font-medium">{p.nome}</span>
-                              <Badge variant={badge.variant} className="shrink-0">
-                                {badge.label}
-                              </Badge>
+                              <span className="truncate text-[15px] font-medium">{p.nome}</span>
+                              <StatusBadge kind={kind} />
                             </div>
-                            <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[13px]">
-                              {quitado ? (
-                                <span className="money text-success">{brl(p.valor_total)} pago</span>
-                              ) : (
-                                <>
-                                  <span className="money font-medium text-destructive">
-                                    Falta {brl(p.saldo)}
-                                  </span>
-                                  <span className="money text-faint">de {brl(p.valor_total)}</span>
-                                </>
-                              )}
+                            <div className="mt-1.5 flex items-center justify-between gap-2 text-[13px]">
+                              <span className="money truncate">
+                                {quitado ? (
+                                  <span className="text-faint">{brl(p.valor_total)}</span>
+                                ) : (
+                                  <>
+                                    <span className="text-foreground">{brl(p.saldo)}</span>
+                                    <span className="text-faint"> / {brl(p.valor_total)}</span>
+                                  </>
+                                )}
+                              </span>
                               {!quitado && p.proximo_vencimento && (
-                                <span className={atrasado ? "text-destructive" : "text-faint"}>
-                                  · vence {ddmm(p.proximo_vencimento)}
+                                <span className={`shrink-0 tabular-nums ${vencCor}`}>
+                                  venc. {ddmm(p.proximo_vencimento)}
                                 </span>
                               )}
                             </div>
@@ -471,13 +484,13 @@ function PassageirosView() {
                               size="icon"
                               variant="ghost"
                               disabled={quitado}
-                              aria-label={`Pagar próxima parcela de ${p.nome}`}
+                              aria-label={`Registrar pagamento de ${p.nome}`}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                pagar(p);
+                                abrirPagamento(p);
                               }}
                             >
-                              <Zap className="size-5" strokeWidth={1.75} />
+                              <CircleDollarSign className="size-5" strokeWidth={1.75} />
                             </Button>
                           )}
                         </div>
@@ -487,25 +500,27 @@ function PassageirosView() {
                 </ul>
 
                 {totalPaginas > 1 && (
-                  <div className="flex items-center justify-between border-t border-white/[0.06] px-3 py-2">
+                  <div className="flex items-center justify-center gap-5 border-t border-border px-3 py-2.5">
                     <Button
-                      size="sm"
+                      size="icon"
                       variant="ghost"
                       disabled={paginaSegura <= 1}
                       onClick={() => setPagina((n) => Math.max(1, n - 1))}
+                      aria-label="Página anterior"
                     >
-                      <ChevronLeft strokeWidth={1.75} /> Anterior
+                      <ChevronLeft strokeWidth={1.75} />
                     </Button>
-                    <span className="text-xs tabular-nums text-faint">
-                      {paginaSegura} / {totalPaginas}
+                    <span className="text-[13px] tabular-nums text-muted-foreground">
+                      Página {paginaSegura} de {totalPaginas}
                     </span>
                     <Button
-                      size="sm"
+                      size="icon"
                       variant="ghost"
                       disabled={paginaSegura >= totalPaginas}
                       onClick={() => setPagina((n) => Math.min(totalPaginas, n + 1))}
+                      aria-label="Próxima página"
                     >
-                      Próxima <ChevronRight strokeWidth={1.75} />
+                      <ChevronRight strokeWidth={1.75} />
                     </Button>
                   </div>
                 )}
@@ -531,7 +546,11 @@ function PassageirosView() {
       )}
 
       {!loading && !selecionando && (
-        <Fab label="Novo passageiro" onClick={() => setNovoOpen(true)}>
+        <Fab
+          label="Novo passageiro"
+          onClick={() => setNovoOpen(true)}
+          className="bottom-[calc(6.75rem+env(safe-area-inset-bottom))]"
+        >
           <Plus className="size-6" strokeWidth={2} />
         </Fab>
       )}
@@ -597,6 +616,26 @@ function PassageirosView() {
         onOpenChange={setParcelarOpen}
         alvos={alvos}
         onConfirm={confirmarParcelamento}
+      />
+
+      {/* Detalhe do passageiro — modal (sem trocar de página) */}
+      <Dialog open={detalheId != null} onOpenChange={(o) => !o && setDetalheId(null)}>
+        <DialogContent variant="sheet" showCloseButton={false}>
+          {detalheId && (
+            <PassageiroDetalhe
+              id={detalheId}
+              onClose={() => setDetalheId(null)}
+              onChanged={load}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Fluxo de pagamento pelo botão da lista */}
+      <PagamentoFlow
+        target={flowTarget}
+        onOpenChange={(o) => !o && setFlowTarget(null)}
+        onDone={load}
       />
     </>
   );
