@@ -251,9 +251,9 @@ export function OverviewBars({ bars, height = 190 }: { bars: OverviewBar[]; heig
                       minHeight: 6,
                       borderRadius: "16px 16px 4px 4px",
                       backgroundImage: `linear-gradient(180deg, ${b.cor}, ${b.cor}c0)`,
-                      boxShadow: `0 0 10px -6px ${b.cor}55, inset 0 1px 0 rgb(255 255 255 / 0.16)`,
+                      boxShadow: "inset 0 1px 0 rgb(255 255 255 / 0.14)",
                       opacity: dim ? 0.4 : 1,
-                      filter: hover === b.label ? "brightness(1.12)" : "none",
+                      filter: hover === b.label ? "brightness(1.08)" : "none",
                       transitionDelay: mounted ? "0ms" : `${i * 80}ms`,
                     }}
                   >

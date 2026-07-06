@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { brl } from "@/lib/format";
+import { haptic } from "@/lib/utils";
 
 export interface DonutSegment {
   id: string;
@@ -61,6 +62,10 @@ export function DespesasDonut({
         {segments.map((s, i) => {
           const arc = s.pct * c;
           const dim = activeId != null && activeId !== s.id;
+          const toggle = () => {
+            haptic();
+            onSelect(selectedId === s.id ? null : s.id);
+          };
           return (
             <circle
               key={s.id}
@@ -73,10 +78,22 @@ export function DespesasDonut({
               strokeLinecap="butt"
               strokeDasharray={`${mounted ? arc : 0} ${c}`}
               transform={`rotate(${startAngles[i] * 360} ${cx} ${cy})`}
-              onClick={() => onSelect(selectedId === s.id ? null : s.id)}
+              role="button"
+              tabIndex={0}
+              aria-label={`${s.label} — ${brl(s.valor)}, ${Math.round(s.pct * 100)}%`}
+              aria-pressed={selectedId === s.id}
+              onClick={toggle}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggle();
+                }
+              }}
               onPointerEnter={() => setHoverId(s.id)}
               onPointerLeave={() => setHoverId(null)}
-              className="cursor-pointer transition-[stroke-dasharray,opacity] duration-600 ease-(--ease-move) motion-reduce:transition-none"
+              onFocus={() => setHoverId(s.id)}
+              onBlur={() => setHoverId(null)}
+              className="cursor-pointer outline-none transition-[stroke-dasharray,opacity] duration-600 ease-(--ease-move) focus-visible:opacity-100 motion-reduce:transition-none"
               style={{ opacity: dim ? 0.25 : 1, transitionDelay: mounted ? "0ms" : `${i * 55}ms` }}
             />
           );

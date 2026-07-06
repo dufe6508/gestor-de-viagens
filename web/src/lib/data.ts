@@ -79,17 +79,18 @@ export interface ResumoGeral {
 }
 
 // Soma o resumo de todas as excursões (dashboard da home).
+// saldo_caixa = recebido − todas as despesas (mesma base do lucro).
 export async function getResumoGeral(): Promise<ResumoGeral> {
   const { data, error } = await supabase
     .from("v_resumo_excursao")
-    .select("total_a_receber, total_recebido, total_despesas, despesas_pagas");
+    .select("total_a_receber, total_recebido, total_despesas");
   if (error) throw error;
   const acc = { total_a_receber: 0, total_recebido: 0, total_despesas: 0, saldo_caixa: 0 };
   for (const r of data ?? []) {
     acc.total_a_receber += Number(r.total_a_receber);
     acc.total_recebido += Number(r.total_recebido);
     acc.total_despesas += Number(r.total_despesas);
-    acc.saldo_caixa += Number(r.total_recebido) - Number(r.despesas_pagas);
+    acc.saldo_caixa += Number(r.total_recebido) - Number(r.total_despesas);
   }
   return acc;
 }

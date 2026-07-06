@@ -66,7 +66,16 @@ export function BottomNav() {
             <DialogTitle>Mais</DialogTitle>
           </DialogHeader>
           <div className="grid gap-2 pb-2">
-            <MaisRow icon={Ticket} label="Passeios" onClick={() => (setMaisOpen(false), toast("Passeios — em breve"))} />
+            <MaisRow
+              icon={Ticket}
+              label="Passeios"
+              onClick={() => {
+                setMaisOpen(false);
+                const id = localStorage.getItem(STORAGE_KEY);
+                if (!id) return toast("Crie uma excursão primeiro");
+                router.push(`/passeios?id=${id}`);
+              }}
+            />
             <MaisRow icon={BarChart3} label="Relatórios" onClick={() => (setMaisOpen(false), toast("Relatórios — em breve"))} />
           </div>
         </DialogContent>

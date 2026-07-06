@@ -14,6 +14,6 @@ export interface ResumoExcursao {
   nome: string;
   total_a_receber: number;
   total_recebido: number;
+  // Todas as despesas do pacote (sem distinção de status; passeio pago incluso).
   total_despesas: number;
-  despesas_pagas: number;
 }

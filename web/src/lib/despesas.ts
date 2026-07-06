@@ -3,7 +3,10 @@
 import { supabase } from "./supabase";
 import { getEmpresaId } from "./data";
 
-export type StatusDespesa = "previsto" | "pago";
+// Origem do recurso usado p/ pagar a despesa (substitui o antigo status previsto/pago).
+// 'passageiros' = valor recebido dos passageiros · 'proprio' = recursos do organizador.
+// Decisão do usuário (2026-07-06): é INFORMATIVO — não altera lucro nem saldo em caixa.
+export type OrigemRecurso = "passageiros" | "proprio";
 export type FormaPagamento = "Pix" | "Dinheiro" | "Cartão" | "Transferência" | "Boleto";
 
 export interface Categoria {
@@ -20,7 +23,7 @@ export interface DespesaRow {
   excursao_nome: string;
   nome: string;
   valor: number;
-  status: StatusDespesa;
+  origem_recurso: OrigemRecurso;
   data: string | null;
   obs: string | null;
   forma_pagamento: string | null;
@@ -37,7 +40,7 @@ export interface DespesaInput {
   categoria_id: string | null;
   valor: number;
   data: string | null;
-  status: StatusDespesa;
+  origem_recurso: OrigemRecurso;
   obs?: string | null;
   forma_pagamento?: string | null;
   responsavel?: string | null;
@@ -96,7 +99,7 @@ export async function listDespesas(excursaoId?: string): Promise<DespesaRow[]> {
   let q = supabase
     .from("despesa")
     .select(
-      "id, excursao_id, nome, valor, status, data, obs, forma_pagamento, responsavel, categoria_id, categoria:categoria_id(nome, cor, icone), excursao:excursao_id(nome)",
+      "id, excursao_id, nome, valor, origem_recurso, data, obs, forma_pagamento, responsavel, categoria_id, categoria:categoria_id(nome, cor, icone), excursao:excursao_id(nome)",
     )
     .order("data", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
@@ -113,7 +116,7 @@ export async function listDespesas(excursaoId?: string): Promise<DespesaRow[]> {
       excursao_nome: (exc?.nome as string) ?? "—",
       nome: d.nome as string,
       valor: Number(d.valor),
-      status: (d.status as StatusDespesa) ?? "previsto",
+      origem_recurso: (d.origem_recurso as OrigemRecurso) ?? "passageiros",
       data: (d.data as string) ?? null,
       obs: (d.obs as string) ?? null,
       forma_pagamento: (d.forma_pagamento as string) ?? null,
@@ -133,7 +136,7 @@ export async function createDespesa(input: DespesaInput): Promise<void> {
     categoria_id: input.categoria_id,
     valor: input.valor,
     data: input.data,
-    status: input.status,
+    origem_recurso: input.origem_recurso,
     obs: input.obs ?? null,
     forma_pagamento: input.forma_pagamento ?? null,
     responsavel: input.responsavel ?? null,
@@ -150,7 +153,7 @@ export async function updateDespesa(id: string, input: DespesaInput): Promise<vo
       categoria_id: input.categoria_id,
       valor: input.valor,
       data: input.data,
-      status: input.status,
+      origem_recurso: input.origem_recurso,
       obs: input.obs ?? null,
       forma_pagamento: input.forma_pagamento ?? null,
       responsavel: input.responsavel ?? null,

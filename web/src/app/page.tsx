@@ -182,10 +182,12 @@ export default function HomePage() {
   const atrasados = passageiros.filter((p) => p.status_pagamento === "atrasado").length;
   const aReceber = resumo?.total_a_receber ?? 0;
   const recebido = resumo?.total_recebido ?? 0;
-  const caixa = recebido - (resumo?.despesas_pagas ?? 0);
-  const falta = Math.max(aReceber - recebido, 0);
   const totalDespesas = resumo?.total_despesas ?? 0;
-  const lucro = aReceber - totalDespesas;
+  const falta = Math.max(aReceber - recebido, 0);
+  // Lucro = saldo em caixa = dinheiro efetivamente recebido − todas as despesas.
+  // Nunca usa "a receber" (dinheiro que ainda não entrou).
+  const caixa = recebido - totalDespesas;
+  const lucro = caixa;
   const dias = diasAte(selected?.data_inicio);
 
   // Passageiros em atraso viram um toast cancelável (X), não um card fixo.
@@ -327,7 +329,7 @@ export default function HomePage() {
 
             {/* 5. Linha do tempo — linha compacta */}
             {dias != null && (
-              <section className="surface flex items-center gap-2.5 rounded-lg px-3 py-2.5">
+              <section className="glass-card glass-card-softer flex items-center gap-2.5 rounded-lg px-3 py-2.5">
                 <CalendarDays className="size-4 shrink-0 text-faint" strokeWidth={1.75} />
                 <p className="flex-1 text-[13px] text-muted-foreground">
                   {dias === 0 ? (

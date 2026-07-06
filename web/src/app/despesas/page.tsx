@@ -30,11 +30,12 @@ import {
   type Categoria,
   type DespesaRow,
   type DespesaInput,
-  type StatusDespesa,
+  type OrigemRecurso,
 } from "@/lib/despesas";
 import { listExcursoes } from "@/lib/data";
 import type { Excursao } from "@/lib/types";
 import { brl } from "@/lib/format";
+import { haptic } from "@/lib/utils";
 import { DespesasDonut, type DonutSegment } from "@/components/despesas-donut";
 import { CategoriaIcon, ICON_OPTIONS, COR_OPTIONS, muteColor } from "@/components/despesas-icons";
 import { Fab } from "@/components/fab";
@@ -132,6 +133,12 @@ function DespesasView() {
 
   const resumoCategorias = useMemo(() => resumirPorCategoria(base), [base]);
   const total = useMemo(() => base.reduce((s, d) => s + d.valor, 0), [base]);
+  // Quebra por origem do recurso (informativo — não afeta lucro/caixa).
+  const doProprio = useMemo(
+    () => base.filter((d) => d.origem_recurso === "proprio").reduce((s, d) => s + d.valor, 0),
+    [base],
+  );
+  const doPassageiros = total - doProprio;
   const media = base.length ? total / base.length : 0;
   const maior = resumoCategorias[0] ?? null;
 
@@ -175,7 +182,7 @@ function DespesasView() {
     categoria_id: "",
     valor: "",
     data: hoje(),
-    status: "pago",
+    origem_recurso: "passageiros",
     excursao_id: "",
   });
 
@@ -187,7 +194,7 @@ function DespesasView() {
       categoria_id: fCategoria && fCategoria !== "__sem__" ? fCategoria : categorias[0]?.id ?? "",
       valor: "",
       data: hoje(),
-      status: "pago",
+      origem_recurso: "passageiros",
       excursao_id: excDefault,
     });
     setDespOpen(true);
@@ -200,7 +207,7 @@ function DespesasView() {
       categoria_id: d.categoria_id ?? "",
       valor: String(d.valor).replace(".", ","),
       data: d.data ?? hoje(),
-      status: d.status,
+      origem_recurso: d.origem_recurso,
       excursao_id: d.excursao_id,
     });
     setDespOpen(true);
@@ -219,7 +226,7 @@ function DespesasView() {
       categoria_id: form.categoria_id || null,
       valor,
       data: form.data || null,
-      status: form.status,
+      origem_recurso: form.origem_recurso,
       forma_pagamento: orig?.forma_pagamento ?? null,
       responsavel: orig?.responsavel ?? null,
       obs: orig?.obs ?? null,
@@ -255,7 +262,7 @@ function DespesasView() {
 
   return (
     <>
-      <main className="mx-auto w-full max-w-md flex-1 px-4 pt-6 pb-nav md:max-w-2xl">
+      <main className="mx-auto w-full max-w-md flex-1 px-4 pt-6 pb-[calc(9.5rem+env(safe-area-inset-bottom))] md:max-w-2xl">
         {/* Header */}
         <header className="mb-5 flex items-center gap-2">
           <Link
@@ -316,11 +323,18 @@ function DespesasView() {
             )}
 
             {/* Hero de resumo — total + indicadores em linha */}
-            <section className="glass-card rounded-lg p-5">
-              <p className="text-sm text-muted-foreground">Total gasto</p>
+            <section className="glass-card glass-card-dim rounded-lg p-5">
+              <p className="money text-sm text-muted-foreground">Total gasto</p>
               <p className="money mt-1.5 text-[2.25rem] font-semibold leading-none text-foreground">
                 {brl(total)}
               </p>
+              {doProprio > 0 && (
+                <p className="mt-1.5 text-xs text-faint">
+                  <span className="money text-muted-foreground">{brl(doPassageiros)}</span> dos
+                  passageiros ·{" "}
+                  <span className="money text-[#f2b34a]">{brl(doProprio)}</span> recursos próprios
+                </p>
+              )}
               <div className="mt-5 grid grid-cols-3 gap-1 border-t border-white/8 pt-4">
                 <Indicador label="Despesas" value={String(base.length)} />
                 <Indicador label="Média" value={brl(media)} money />
@@ -462,17 +476,15 @@ function DespesasView() {
                       <div className="border-t border-white/8 px-3 pt-3 pb-3">
                         {/* controles */}
                         <div className="mb-2 flex items-center gap-2">
-                          {base.length > 4 && (
-                            <div className="relative flex-1">
-                              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" />
-                              <Input
-                                placeholder="Buscar"
-                                value={busca}
-                                onChange={(e) => setBusca(e.target.value)}
-                                className="h-10 pl-9 text-sm"
-                              />
-                            </div>
-                          )}
+                          <div className="relative flex-1">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-faint" />
+                            <Input
+                              placeholder="Buscar"
+                              value={busca}
+                              onChange={(e) => setBusca(e.target.value)}
+                              className="h-10 pl-9 text-sm"
+                            />
+                          </div>
                           <Button
                             size="sm"
                             variant="secondary"
@@ -495,9 +507,9 @@ function DespesasView() {
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1.5">
                                   <span className="truncate text-sm font-medium">{d.nome}</span>
-                                  {d.status === "previsto" && (
-                                    <Badge variant="warning" className="h-[18px] shrink-0 px-1.5 text-[10px]">
-                                      Previsto
+                                  {d.origem_recurso === "proprio" && (
+                                    <Badge variant="outline" className="h-[18px] shrink-0 px-1.5 text-[10px]">
+                                      Próprio
                                     </Badge>
                                   )}
                                 </div>
@@ -651,7 +663,10 @@ function Chip({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => {
+        haptic();
+        onClick();
+      }}
       className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-[border-color,background-color,color] duration-150 active:scale-95 ${
         active
           ? "border-transparent bg-primary text-primary-foreground shadow-[0_2px_10px_-3px_rgb(0_0_0_/_0.6)]"
@@ -668,7 +683,7 @@ type DespForm = {
   categoria_id: string;
   valor: string;
   data: string;
-  status: StatusDespesa;
+  origem_recurso: OrigemRecurso;
   excursao_id: string;
 };
 
@@ -753,17 +768,22 @@ function DespesaDialog({
             </div>
           </div>
 
-          {/* Situação */}
+          {/* Origem do recurso — de onde saiu o dinheiro */}
           <div className="space-y-1.5">
-            <Label>Situação</Label>
+            <Label>Origem do recurso</Label>
             <div className="grid grid-cols-2 gap-2">
-              {(["pago", "previsto"] as StatusDespesa[]).map((s) => (
+              {(
+                [
+                  { v: "passageiros", label: "Dos passageiros" },
+                  { v: "proprio", label: "Recursos próprios" },
+                ] as { v: OrigemRecurso; label: string }[]
+              ).map((o) => (
                 <Chip
-                  key={s}
-                  active={form.status === s}
-                  onClick={() => setForm({ ...form, status: s })}
+                  key={o.v}
+                  active={form.origem_recurso === o.v}
+                  onClick={() => setForm({ ...form, origem_recurso: o.v })}
                 >
-                  <span className="mx-auto">{s === "pago" ? "Pago" : "Previsto"}</span>
+                  <span className="mx-auto">{o.label}</span>
                 </Chip>
               ))}
             </div>

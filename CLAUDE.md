@@ -6,8 +6,8 @@ App financeiro para empresa de excursões. Substitui planilhas Excel. Uso solo (
 
 ## Estado atual
 
-- Fase: MVP em construção. Telas 1 e 2 prontas (lista de excursões + dashboard/pagamento).
-- Falta: despesas, passeios, ônibus/quartos (alocação), parcelas, Capacitor/APK.
+- Fase: MVP em construção. Prontos: excursões, dashboard, passageiros/parcelas/pagamentos, despesas, passeios.
+- Falta: ônibus/quartos (alocação), Capacitor/APK.
 - ⚠️ **Auth DESABILITADO em dev.** RLS liberado p/ `anon`. REATIVAR antes de dado real. Ver §12 do RASCUNHO.
 
 ## Estrutura
@@ -37,7 +37,7 @@ npm run lint     # eslint
 - Tipos em [web/src/lib/types.ts](web/src/lib/types.ts). Formatação (moeda/data) em [web/src/lib/format.ts](web/src/lib/format.ts).
 - **Campos calculados = views SQL, nunca colunas guardadas** (evita dessincronizar):
   - `v_passageiro_saldo` → valor_pago, saldo, status_pagamento.
-  - `v_resumo_excursao` → total_a_receber, total_recebido, total_despesas, despesas_pagas, etc.
+  - `v_resumo_excursao` → total_a_receber, total_recebido, total_despesas. **Lucro = saldo_caixa = total_recebido − total_despesas** (nunca "a receber"; regra 2026-07-06).
 - **`empresa_id` já entra nas tabelas-topo.** MVP roda com 1 empresa fixa (`getEmpresaId()` memoiza). Não remover — é o gancho p/ multi-empresa + RLS.
 - Passageiro = junção `cliente × excursao`. Mesma pessoa = 1 `cliente`, N `passageiro`.
 - **Passeio é neutro/pass-through** — entra+sai, NÃO conta no lucro.

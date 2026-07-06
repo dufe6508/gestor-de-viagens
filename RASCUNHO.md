@@ -85,7 +85,7 @@
 - nome (ex: "Ônibus", "Xareu", "Rodízio")
 - classe_id (FK → ClasseDespesa)
 - valor
-- status (previsto / pago)
+- origem_recurso (passageiros / proprio)  ← substituiu status; ver §11
 - data, observação (detalhável)
 
 ### CategoriaDespesa (criada pelo usuário)
@@ -94,11 +94,13 @@
 - (empresa_id no futuro multi-tenant)
 
 ### Passeio (dentro da viagem) — NEUTRO / pass-through
-- id, excursao_id, nome (ex: "Passeio de bugre"), fornecedor/agência
-- valor_unitario (por pessoa)
-- participantes: lista de passageiros que aderiram
+- id, excursao_id, nome (ex: "Passeio de bugre"), fornecedor/agência (opc)
+- `icone` (string, ex: "Car"/"Plane"/"Ship" — set em components/passeio-icons.tsx), `data` (opc)
+- valor_unitario (por pessoa) = valor PADRÃO ao adicionar participante
+- participantes (passeio_participante): cada um tem `valor` (editável, começa = valor_unitario) + `pago` (bool)
 - Fluxo: tia paga a agência (saída) e recebe do passageiro (entrada). Net ~zero.
 - Objetivo: controle de quem foi e se pagou. Registra entrada+saída, mas não conta como lucro.
+- I/O em `lib/passeios.ts` (módulo próprio, não data.ts). Tela `/passeios`. Decisão "valor por pessoa editável": usuário 2026-07-06.
 
 ### Onibus
 - id, excursao_id, identificação, capacidade, custo, fornecedor
@@ -146,10 +148,11 @@ atualizarStatus(passageiro):
 resumoExcursao(excursao):
     total_a_receber = soma(passageiro.valor_total)
     total_recebido  = soma(pagamento.valor)
-    total_despesas  = soma(despesa.valor)
-    lucro_previsto  = total_a_receber - total_despesas
-    lucro_realizado = total_recebido - despesas_pagas
-    saldo_caixa     = total_recebido - despesas_pagas
+    total_despesas  = soma(despesa.valor)            # TODAS as despesas (sem status)
+    # Regra travada (usuário 2026-07-06): lucro usa dinheiro que REALMENTE entrou,
+    # nunca "a receber". Lucro == saldo_caixa.
+    lucro           = total_recebido - total_despesas
+    saldo_caixa     = total_recebido - total_despesas
     inadimplentes   = passageiros com status 'atrasado'
 ```
 
@@ -235,16 +238,20 @@ quando ligar multi-empresa + RLS). MVP roda com 1 empresa fixa.
 - id, excursao_id → excursao
 - nome (ex: "Equipe", "Xareu")
 - categoria_id → categoria_despesa
-- valor, status (previsto | pago), data (opc), obs
+- valor, origem_recurso (passageiros | proprio), data (opc), obs
+- `origem_recurso` (usuário 2026-07-06): de onde saiu o dinheiro. INFORMATIVO —
+  NÃO altera lucro nem saldo_caixa (os dois descontam todas as despesas). Substituiu
+  o campo `status` (previsto|pago) na UI. Coluna `status` mantida no schema mas
+  DEPRECADA (não ler/escrever) — sem ela, toda despesa lançada é saída realizada.
 
 **passeio** (neutro / pass-through)
 - id, excursao_id → excursao
-- nome, fornecedor, valor_unitario
+- nome, fornecedor (opc), valor_unitario, icone, data (opc)
 - NÃO entra no lucro
 
 **passeio_participante** (junção)
 - passeio_id → passeio, passageiro_id → passageiro
-- pago (bool)
+- valor (editável por pessoa), pago (bool)
 
 **onibus**
 - id, excursao_id → excursao
@@ -264,15 +271,20 @@ quando ligar multi-empresa + RLS). MVP roda com 1 empresa fixa.
 - `passageiro.valor_pago`   = SUM(pagamento.valor onde passageiro_id)
 - `passageiro.saldo`        = valor_total − valor_pago
 - `passageiro.status`       = saldo==0 → quitado; parcela vencida pendente → atrasado; senão em dia
-- `resumo_excursao`:
+- `resumo_excursao` (revisado 2026-07-06 — lucro por dinheiro recebido):
   - total_a_receber  = SUM(passageiro.valor_total)
   - total_recebido   = SUM(pagamento.valor)
-  - total_despesas   = SUM(despesa.valor)
-  - despesas_pagas   = SUM(despesa.valor onde status=pago)
-  - lucro_previsto   = total_a_receber − total_despesas
-  - saldo_caixa      = total_recebido − despesas_pagas
+  - total_despesas   = SUM(despesa.valor)  ← TODAS (coluna `status` deprecada) + repasse passeio pago
+  - **lucro = saldo_caixa = total_recebido − total_despesas** (nunca usa "a receber")
   - inadimplentes    = passageiros status=atrasado
-  - (passeio fica de fora do lucro — é neutro)
+  - Coluna `despesas_pagas` REMOVIDA da view (não faz sentido sem status).
+  - **passeio (pass-through, decisão usuário 2026-07-06):** entra em total_a_receber
+    (todos participantes) e total_recebido (participantes com pago). No total_despesas
+    entra só o repasse dos participantes PAGOS ⇒ passeio fica NEUTRO no lucro/saldo_caixa
+    (recebido +pago, despesa +pago se anulam). Só "a receber/falta/recebido" refletem o resto.
+  - **origem_recurso** (passageiros|proprio): informativo, NÃO entra no cálculo (decisão
+    usuário: "sai do caixa igual" — origem não muda nenhum número, só serve p/ gestão).
+  - view `v_resumo_excursao` = `security_invoker=true` (NÃO recriar sem essa opção — vira ERRO definer).
 
 ### Diagrama (relações)
 ```
@@ -317,7 +329,9 @@ empresa
     editar/excluir pagamento de vez é permitido (regra "nada se apaga" revogada p/
     pagamentos, decisão do usuário 2026-07-06).
 - [x] Build OK + CRUD validado ponta-a-ponta via anon key (read/insert/delete)
-- [ ] Módulos restantes: passeios, ônibus/quartos (alocação)
+- [x] Módulo passeios (tela `/passeios` + `lib/passeios.ts`): criar/editar/excluir passeio, ícone+data, participantes com valor editável e toggle pago, adicionar/remover pessoas.
+- [x] **Revisão financeira (2026-07-06):** lucro/saldo_caixa passam a usar `total_recebido − total_despesas` (nunca "a receber"). Despesa ganha `origem_recurso` (passageiros|proprio, informativo) e perde o campo `status` na UI. View `v_resumo_excursao` recriada (sem `despesas_pagas`). Migration `despesa_origem_recurso_e_lucro_por_recebido`.
+- [ ] Módulos restantes: ônibus/quartos (alocação)
 - [ ] Integrar Capacitor → gerar APK (fase final)
 
 > Nota RLS: política `USING(true)` p/ `authenticated` = WARN intencional. Só a tia tem conta no MVP.
