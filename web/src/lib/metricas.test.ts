@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   acumular,
+  agingBucket,
   deltaPct,
+  diasEntre,
+  faixaVencimento,
   noRange,
+  proximasChavesMes,
   rangesDoPreset,
   somaNoRange,
   somaPorMes,
@@ -117,5 +121,37 @@ describe("séries mensais", () => {
   it("somarDias cruza mês e ano", () => {
     expect(somarDias("2026-07-06", 7)).toBe("2026-07-13");
     expect(somarDias("2026-12-28", 7)).toBe("2027-01-04");
+  });
+
+  it("proximasChavesMes projeta para frente incluindo o mês corrente", () => {
+    expect(proximasChavesMes("2026-11-20", 4)).toEqual([
+      "2026-11",
+      "2026-12",
+      "2027-01",
+      "2027-02",
+    ]);
+  });
+});
+
+describe("cobrança / aging", () => {
+  it("diasEntre conta dias inteiros com sinal", () => {
+    expect(diasEntre("2026-07-06", "2026-07-13")).toBe(7);
+    expect(diasEntre("2026-07-13", "2026-07-06")).toBe(-7);
+  });
+
+  it("agingBucket classifica por severidade", () => {
+    expect(agingBucket(3)).toBe("1-7");
+    expect(agingBucket(7)).toBe("1-7");
+    expect(agingBucket(8)).toBe("8-30");
+    expect(agingBucket(45)).toBe("30+");
+  });
+
+  it("faixaVencimento separa atrasada/semana/mês/depois", () => {
+    const hoje = "2026-07-06";
+    expect(faixaVencimento("2026-07-01", hoje)).toBe("atrasada");
+    expect(faixaVencimento("2026-07-06", hoje)).toBe("semana");
+    expect(faixaVencimento("2026-07-13", hoje)).toBe("semana");
+    expect(faixaVencimento("2026-07-20", hoje)).toBe("mes");
+    expect(faixaVencimento("2026-09-01", hoje)).toBe("depois");
   });
 });
