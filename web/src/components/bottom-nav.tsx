@@ -85,7 +85,14 @@ export function BottomNav() {
                 router.push(`/passeios?id=${id}`);
               }}
             />
-            <MaisRow icon={BarChart3} label="Relatórios" onClick={() => (setMaisOpen(false), toast("Relatórios — em breve"))} />
+            <MaisRow
+              icon={BarChart3}
+              label="Relatórios"
+              onClick={() => {
+                setMaisOpen(false);
+                router.push("/relatorios");
+              }}
+            />
             <MaisRow
               icon={Settings}
               label="Configurações"

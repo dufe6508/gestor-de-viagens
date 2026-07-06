@@ -339,6 +339,8 @@ empresa
 - [x] Módulo passeios (tela `/passeios` + `lib/passeios.ts`): criar/editar/excluir passeio, ícone+data, participantes com valor editável e toggle pago, adicionar/remover pessoas.
 - [x] **Revisão financeira (2026-07-06):** lucro/saldo_caixa passam a usar `total_recebido − total_despesas` (nunca "a receber"). Despesa ganha `origem_recurso` (passageiros|proprio, informativo) e perde o campo `status` na UI. View `v_resumo_excursao` recriada (sem `despesas_pagas`). Migration `despesa_origem_recurso_e_lucro_por_recebido`.
 - [ ] Módulos restantes: ônibus/quartos (alocação)
+- [ ] Módulo Relatórios & BI — planejamento PROPOSTO (aguardando aprovação):
+      `docs/superpowers/plans/2026-07-06-relatorios-bi.md`
 - [ ] Integrar Capacitor → gerar APK (fase final)
 
 > Nota RLS (2026-07-06): isolamento por empresa via `minhas_empresas()` (própria + demo).
