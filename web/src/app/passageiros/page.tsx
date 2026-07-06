@@ -4,7 +4,16 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, CheckSquare, Plus, Search, Users, Zap } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckSquare,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Search,
+  Users,
+  Zap,
+} from "lucide-react";
 import {
   listPassageiros,
   addPassageiro,
@@ -45,11 +54,13 @@ const FILTROS: { v: FiltroStatus; label: string }[] = [
 ];
 
 const ORDENS = [
-  { value: "num", label: "Nº" },
   { value: "nome", label: "Nome A–Z" },
   { value: "divida", label: "Maior dívida" },
   { value: "vence", label: "Vence antes" },
+  { value: "num", label: "Cadastro" },
 ];
+
+const PAGE_SIZE = 20;
 
 const BADGE: Record<StatusPagamento, { variant: "success" | "destructive" | "secondary"; label: string }> = {
   quitado: { variant: "success", label: "Quitado" },
@@ -71,7 +82,8 @@ function PassageirosView() {
 
   const [busca, setBusca] = useState("");
   const [fStatus, setFStatus] = useState<FiltroStatus>("todos");
-  const [ordem, setOrdem] = useState<Ordem>("num");
+  const [ordem, setOrdem] = useState<Ordem>("nome");
+  const [pagina, setPagina] = useState(1);
 
   // modo seleção
   const [selecionando, setSelecionando] = useState(false);
@@ -109,12 +121,9 @@ function PassageirosView() {
     load();
   }, [load]);
 
-  // Nº fixo pela ordem de cadastro — calculado ANTES de filtro/ordenação.
-  const numerados = useMemo(() => passageiros.map((p, i) => ({ ...p, num: i + 1 })), [passageiros]);
-
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    const l = numerados.filter(
+    const l = passageiros.filter(
       (p) =>
         (fStatus === "todos" || p.status_pagamento === fStatus) &&
         (!q || p.nome.toLowerCase().includes(q)),
@@ -125,8 +134,14 @@ function PassageirosView() {
       return [...l].sort((a, b) =>
         (a.proximo_vencimento ?? "9999").localeCompare(b.proximo_vencimento ?? "9999"),
       );
-    return l;
-  }, [numerados, busca, fStatus, ordem]);
+    return l; // "num" = ordem de cadastro (created_at)
+  }, [passageiros, busca, fStatus, ordem]);
+
+  // Paginação — o Nº mostrado é a posição na lista ordenada (sequencial entre páginas).
+  const totalPaginas = Math.max(1, Math.ceil(lista.length / PAGE_SIZE));
+  const paginaSegura = Math.min(pagina, totalPaginas);
+  const inicio = (paginaSegura - 1) * PAGE_SIZE;
+  const visiveis = lista.slice(inicio, inicio + PAGE_SIZE);
 
   const recebido = Number(resumo?.total_recebido ?? 0);
   const aReceber = Number(resumo?.total_a_receber ?? 0);
@@ -224,9 +239,6 @@ function PassageirosView() {
   if (!excursaoId)
     return <p className="p-8 text-center text-muted-foreground">Excursão não informada.</p>;
 
-  const cols = selecionando
-    ? "grid-cols-[1.25rem_2rem_minmax(0,1fr)_5rem_5rem_6rem_2.75rem]"
-    : "grid-cols-[2rem_minmax(0,1fr)_5rem_5rem_6rem_2.75rem]";
   const semResultado = !loading && passageiros.length > 0 && lista.length === 0;
 
   return (
@@ -274,7 +286,7 @@ function PassageirosView() {
         ) : (
           <div className="space-y-4">
             {/* Resumo financeiro */}
-            <section className="glass-card grid grid-cols-3 gap-1 rounded-lg p-4">
+            <section className="glass-card glass-card-soft grid grid-cols-3 gap-1 rounded-lg p-4">
               <div className="min-w-0">
                 <p className="text-xs text-faint">Recebido</p>
                 <p className="money mt-0.5 truncate text-sm font-semibold text-success">
@@ -308,7 +320,10 @@ function PassageirosView() {
                   aria-label="Buscar passageiro"
                   placeholder="Buscar por nome"
                   value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
+                  onChange={(e) => {
+                    setBusca(e.target.value);
+                    setPagina(1);
+                  }}
                   className="pl-9"
                 />
               </div>
@@ -320,6 +335,7 @@ function PassageirosView() {
                     onClick={() => {
                       haptic();
                       setFStatus(f.v);
+                      setPagina(1);
                     }}
                     aria-pressed={fStatus === f.v}
                     className={`inline-flex h-9 items-center rounded-full px-3 text-[13px] font-medium transition-colors duration-150 active:scale-95 ${
@@ -336,7 +352,10 @@ function PassageirosView() {
                 <SelectField
                   id="ordem"
                   value={ordem}
-                  onValueChange={(v) => setOrdem(v as Ordem)}
+                  onValueChange={(v) => {
+                    setOrdem(v as Ordem);
+                    setPagina(1);
+                  }}
                   options={ORDENS}
                   className="h-11 flex-1 text-sm data-[size=default]:h-11"
                 />
@@ -355,112 +374,141 @@ function PassageirosView() {
               </div>
             </div>
 
-            {/* Tabela */}
+            {/* Selecionar todos (modo seleção) */}
+            {selecionando && lista.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleTodos}
+                className="flex items-center gap-2 px-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <input
+                  type="checkbox"
+                  className="pointer-events-none size-4 accent-primary"
+                  checked={todosVisiveisSel}
+                  readOnly
+                  tabIndex={-1}
+                  aria-hidden
+                />
+                {todosVisiveisSel ? "Limpar seleção" : `Selecionar todos (${lista.length})`}
+              </button>
+            )}
+
+            {/* Lista de passageiros */}
             {semResultado ? (
               <p className="py-12 text-center text-sm text-muted-foreground">
                 Nenhum resultado para {busca.trim() ? `“${busca.trim()}”` : "esse filtro"}.
               </p>
             ) : (
-              <section className="glass-card overflow-x-auto rounded-lg">
-                <div className="min-w-[560px]">
-                  {/* Header */}
-                  <div
-                    className={`grid ${cols} items-center gap-2 border-b border-white/8 px-3 py-2.5 text-xs uppercase tracking-wide text-faint`}
-                  >
-                    {selecionando && (
-                      <input
-                        type="checkbox"
-                        className="size-4 accent-primary"
-                        checked={todosVisiveisSel}
-                        onChange={toggleTodos}
-                        aria-label="Selecionar todos"
-                      />
-                    )}
-                    <span>Nº</span>
-                    <span>Nome</span>
-                    <span className="text-right">Total</span>
-                    <span className="text-right">Pago</span>
-                    <span className="text-right">Falta</span>
-                    <span aria-hidden="true" />
-                  </div>
-
-                  {lista.map((p) => {
+              <section className="glass-card glass-card-soft overflow-hidden rounded-xl">
+                <ul className="divide-y divide-white/[0.06]">
+                  {visiveis.map((p, i) => {
                     const quitado = p.status_pagamento === "quitado";
+                    const atrasado = p.status_pagamento === "atrasado";
                     const badge = BADGE[p.status_pagamento];
                     const marcado = sel.has(p.id);
                     return (
-                      <div
-                        key={p.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => {
-                          if (selecionando) toggleSel(p.id);
-                          else router.push("/passageiro?id=" + p.id);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
+                      <li key={p.id}>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Abrir ${p.nome}`}
+                          onClick={() => {
                             if (selecionando) toggleSel(p.id);
                             else router.push("/passageiro?id=" + p.id);
-                          }
-                        }}
-                        className={`grid ${cols} min-h-11 cursor-pointer items-center gap-2 border-b border-white/[0.04] px-3 py-2 outline-none transition-colors duration-150 last:border-b-0 hover:bg-white/[0.04] focus-visible:bg-white/[0.06] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring/60 active:scale-[0.995] ${
-                          marcado ? "bg-white/[0.05]" : ""
-                        }`}
-                      >
-                        {selecionando && (
-                          <input
-                            type="checkbox"
-                            className="pointer-events-none size-4 accent-primary"
-                            checked={marcado}
-                            readOnly
-                            tabIndex={-1}
-                            aria-label={`Selecionar ${p.nome}`}
-                          />
-                        )}
-                        <span className="text-sm tabular-nums text-faint">{p.num}</span>
-                        <span className="truncate text-sm font-medium">{p.nome}</span>
-                        <span className="money text-right text-[13px] text-muted-foreground">
-                          {brl(p.valor_total)}
-                        </span>
-                        <span className="money text-right text-[13px] text-muted-foreground">
-                          {brl(p.valor_pago)}
-                        </span>
-                        <div className="min-w-0 text-right">
-                          <p
-                            className={`money text-sm font-semibold ${
-                              quitado ? "text-success" : "text-foreground"
-                            }`}
-                          >
-                            {quitado ? "—" : brl(p.saldo)}
-                          </p>
-                          <div className="mt-0.5 flex items-center justify-end gap-1.5">
-                            <Badge variant={badge.variant} className="h-[18px] px-1.5 text-[10px]">
-                              {badge.label}
-                            </Badge>
-                            {!quitado && p.proximo_vencimento && (
-                              <span className="text-[11px] text-faint">
-                                vence {ddmm(p.proximo_vencimento)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          disabled={quitado}
-                          aria-label="Pagar próxima parcela"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            pagar(p);
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              if (selecionando) toggleSel(p.id);
+                              else router.push("/passageiro?id=" + p.id);
+                            }
+                          }}
+                          className={`flex min-h-[64px] cursor-pointer items-center gap-3 px-4 py-3 outline-none transition-colors duration-150 hover:bg-white/[0.03] focus-visible:bg-white/[0.05] active:scale-[0.997] ${
+                            marcado ? "bg-white/[0.05]" : ""
+                          }`}
                         >
-                          <Zap className="size-5" strokeWidth={1.75} />
-                        </Button>
-                      </div>
+                          {selecionando ? (
+                            <input
+                              type="checkbox"
+                              className="pointer-events-none size-5 shrink-0 accent-primary"
+                              checked={marcado}
+                              readOnly
+                              tabIndex={-1}
+                              aria-label={`Selecionar ${p.nome}`}
+                            />
+                          ) : (
+                            <span className="w-6 shrink-0 text-center text-[13px] tabular-nums text-faint">
+                              {inicio + i + 1}
+                            </span>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate font-medium">{p.nome}</span>
+                              <Badge variant={badge.variant} className="shrink-0">
+                                {badge.label}
+                              </Badge>
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[13px]">
+                              {quitado ? (
+                                <span className="money text-success">{brl(p.valor_total)} pago</span>
+                              ) : (
+                                <>
+                                  <span className="money font-medium text-destructive">
+                                    Falta {brl(p.saldo)}
+                                  </span>
+                                  <span className="money text-faint">de {brl(p.valor_total)}</span>
+                                </>
+                              )}
+                              {!quitado && p.proximo_vencimento && (
+                                <span className={atrasado ? "text-destructive" : "text-faint"}>
+                                  · vence {ddmm(p.proximo_vencimento)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {!selecionando && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              disabled={quitado}
+                              aria-label={`Pagar próxima parcela de ${p.nome}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                pagar(p);
+                              }}
+                            >
+                              <Zap className="size-5" strokeWidth={1.75} />
+                            </Button>
+                          )}
+                        </div>
+                      </li>
                     );
                   })}
-                </div>
+                </ul>
+
+                {totalPaginas > 1 && (
+                  <div className="flex items-center justify-between border-t border-white/[0.06] px-3 py-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={paginaSegura <= 1}
+                      onClick={() => setPagina((n) => Math.max(1, n - 1))}
+                    >
+                      <ChevronLeft strokeWidth={1.75} /> Anterior
+                    </Button>
+                    <span className="text-xs tabular-nums text-faint">
+                      {paginaSegura} / {totalPaginas}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={paginaSegura >= totalPaginas}
+                      onClick={() => setPagina((n) => Math.min(totalPaginas, n + 1))}
+                    >
+                      Próxima <ChevronRight strokeWidth={1.75} />
+                    </Button>
+                  </div>
+                )}
               </section>
             )}
           </div>

@@ -324,7 +324,7 @@ function PassageiroView() {
 
         <div className="space-y-5">
           {/* Hero — saldo */}
-          <section className="glass-card rounded-lg p-5">
+          <section className="glass-card glass-card-soft rounded-lg p-5">
             {quitado ? (
               <>
                 <p className="text-sm text-muted-foreground">Quitado</p>
