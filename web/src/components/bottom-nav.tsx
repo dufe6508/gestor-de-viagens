@@ -27,7 +27,7 @@ export function BottomNav() {
   const go = (base: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     const id = localStorage.getItem(STORAGE_KEY);
-    if (base === "/excursao" && !id) {
+    if (base === "/passageiros" && !id) {
       toast("Crie uma excursão primeiro");
       return;
     }
@@ -45,9 +45,9 @@ export function BottomNav() {
           <NavItem
             icon={Users}
             label="Passageiros"
-            active={pathname === "/excursao"}
-            href="/excursao"
-            onClick={go("/excursao")}
+            active={pathname === "/passageiros" || pathname === "/passageiro"}
+            href="/passageiros"
+            onClick={go("/passageiros")}
           />
           <NavItem
             icon={Wallet}

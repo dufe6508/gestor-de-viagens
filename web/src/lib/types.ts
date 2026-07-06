@@ -1,5 +1,4 @@
 export type StatusExcursao = "planejada" | "ativa" | "encerrada";
-export type StatusPagamento = "quitado" | "atrasado" | "em_dia";
 
 export interface Excursao {
   id: string;
@@ -17,13 +16,4 @@ export interface ResumoExcursao {
   total_recebido: number;
   total_despesas: number;
   despesas_pagas: number;
-}
-
-export interface PassageiroRow {
-  id: string;
-  nome: string;
-  valor_total: number;
-  valor_pago: number;
-  saldo: number;
-  status_pagamento: StatusPagamento;
 }

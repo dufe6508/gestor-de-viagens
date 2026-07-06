@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import type { Excursao, ResumoExcursao, PassageiroRow } from "./types";
+import type { Excursao, ResumoExcursao } from "./types";
 
 // MVP: uma empresa. Busca (e memoiza) o id da única empresa.
 let empresaIdCache: string | null = null;
@@ -40,6 +40,22 @@ export async function createExcursao(input: {
     .single();
   if (error) throw error;
   return data as Excursao;
+}
+
+export async function updateExcursao(
+  id: string,
+  input: { nome: string; destino?: string; data_inicio?: string; data_fim?: string },
+): Promise<void> {
+  const { error } = await supabase
+    .from("excursao")
+    .update({
+      nome: input.nome,
+      destino: input.destino || null,
+      data_inicio: input.data_inicio || null,
+      data_fim: input.data_fim || null,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 // Regra CLAUDE.md §"histórico": nada se apaga. Só exclui excursão VAZIA
@@ -98,64 +114,4 @@ export async function getResumo(id: string): Promise<ResumoExcursao> {
   return data as ResumoExcursao;
 }
 
-export async function listPassageiros(excursaoId: string): Promise<PassageiroRow[]> {
-  const [{ data: pax, error: e1 }, { data: saldos, error: e2 }] = await Promise.all([
-    supabase
-      .from("passageiro")
-      .select("id, valor_total, cliente:cliente_id(nome)")
-      .eq("excursao_id", excursaoId)
-      .order("created_at"),
-    supabase
-      .from("v_passageiro_saldo")
-      .select("passageiro_id, valor_pago, saldo, status_pagamento")
-      .eq("excursao_id", excursaoId),
-  ]);
-  if (e1) throw e1;
-  if (e2) throw e2;
-
-  const saldoById = new Map(
-    (saldos ?? []).map((s) => [s.passageiro_id as string, s]),
-  );
-
-  return (pax ?? []).map((p) => {
-    // cliente vem como objeto (ou array) do join — normaliza.
-    const cli = Array.isArray(p.cliente) ? p.cliente[0] : p.cliente;
-    const s = saldoById.get(p.id as string);
-    return {
-      id: p.id as string,
-      nome: (cli?.nome as string) ?? "—",
-      valor_total: Number(p.valor_total),
-      valor_pago: Number(s?.valor_pago ?? 0),
-      saldo: Number(s?.saldo ?? p.valor_total),
-      status_pagamento: (s?.status_pagamento ?? "em_dia") as PassageiroRow["status_pagamento"],
-    };
-  });
-}
-
-export async function addPassageiro(
-  excursaoId: string,
-  nome: string,
-  valorTotal: number,
-): Promise<void> {
-  const empresa_id = await getEmpresaId();
-  // Cria o cliente e o vincula à excursão numa inscrição.
-  const { data: cli, error: e1 } = await supabase
-    .from("cliente")
-    .insert({ empresa_id, nome })
-    .select("id")
-    .single();
-  if (e1) throw e1;
-  const { error: e2 } = await supabase.from("passageiro").insert({
-    excursao_id: excursaoId,
-    cliente_id: cli.id,
-    valor_total: valorTotal,
-  });
-  if (e2) throw e2;
-}
-
-export async function registrarPagamento(passageiroId: string, valor: number): Promise<void> {
-  const { error } = await supabase
-    .from("pagamento")
-    .insert({ passageiro_id: passageiroId, valor });
-  if (error) throw error;
-}
+// I/O de passageiros/parcelas/pagamentos: ver lib/passageiros.ts (módulo próprio).

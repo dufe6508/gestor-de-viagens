@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -9,6 +9,7 @@ import {
   MapPin,
   Check,
   CalendarDays,
+  Pencil,
   Trash2,
   TriangleAlert,
   X,
@@ -16,11 +17,12 @@ import {
 import {
   listExcursoes,
   createExcursao,
+  updateExcursao,
   deleteExcursao,
   getResumo,
-  listPassageiros,
 } from "@/lib/data";
-import type { Excursao, ResumoExcursao, PassageiroRow } from "@/lib/types";
+import { listPassageiros, type PassageiroRow } from "@/lib/passageiros";
+import type { Excursao, ResumoExcursao } from "@/lib/types";
 import { brl } from "@/lib/format";
 import { DonutProgress, OverviewBars } from "@/components/charts";
 import { Fab } from "@/components/fab";
@@ -63,6 +65,7 @@ export default function HomePage() {
 
   const [switchOpen, setSwitchOpen] = useState(false);
   const [novaOpen, setNovaOpen] = useState(false);
+  const [editingExc, setEditingExc] = useState<Excursao | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ nome: "", destino: "", data_inicio: "", data_fim: "" });
   const [excluindo, setExcluindo] = useState<Excursao | null>(null);
@@ -108,23 +111,52 @@ export default function HomePage() {
     loadDados(selectedId);
   }, [selectedId, loadDados]);
 
-  async function handleCreate() {
+  function abrirNova() {
+    setEditingExc(null);
+    setForm({ nome: "", destino: "", data_inicio: "", data_fim: "" });
+    setNovaOpen(true);
+  }
+
+  function abrirEdicao(e: Excursao) {
+    setEditingExc(e);
+    setForm({
+      nome: e.nome,
+      destino: e.destino ?? "",
+      data_inicio: e.data_inicio ?? "",
+      data_fim: e.data_fim ?? "",
+    });
+    setSwitchOpen(false);
+    setNovaOpen(true);
+  }
+
+  async function handleSave() {
     if (!form.nome.trim()) return toast.error("Dê um nome à excursão");
     setSaving(true);
     try {
-      const nova = await createExcursao({
-        nome: form.nome.trim(),
-        destino: form.destino.trim(),
-        data_inicio: form.data_inicio,
-        data_fim: form.data_fim,
-      });
-      toast.success("Excursão criada");
-      setNovaOpen(false);
-      setForm({ nome: "", destino: "", data_inicio: "", data_fim: "" });
-      await loadExcursoes();
-      setSelectedId(nova.id);
+      if (editingExc) {
+        await updateExcursao(editingExc.id, {
+          nome: form.nome.trim(),
+          destino: form.destino.trim(),
+          data_inicio: form.data_inicio,
+          data_fim: form.data_fim,
+        });
+        toast.success("Excursão atualizada");
+        setNovaOpen(false);
+        await loadExcursoes();
+      } else {
+        const nova = await createExcursao({
+          nome: form.nome.trim(),
+          destino: form.destino.trim(),
+          data_inicio: form.data_inicio,
+          data_fim: form.data_fim,
+        });
+        toast.success("Excursão criada");
+        setNovaOpen(false);
+        await loadExcursoes();
+        setSelectedId(nova.id);
+      }
     } catch (e) {
-      toast.error("Erro ao criar", { description: String((e as Error).message) });
+      toast.error("Erro ao salvar", { description: String((e as Error).message) });
     } finally {
       setSaving(false);
     }
@@ -157,50 +189,51 @@ export default function HomePage() {
   const dias = diasAte(selected?.data_inicio);
 
   // Passageiros em atraso viram um toast cancelável (X), não um card fixo.
-  const atrasoRef = useRef<string | null>(null);
+  // Keyed por excursão (dep primitiva): o cleanup fecha o toast ao trocar de
+  // excursão, então ele não "vaza" para a próxima.
   useEffect(() => {
-    if (!selected) return;
-    const key = `${selected.id}:${atrasados}`;
-    if (atrasados > 0 && atrasoRef.current !== key) {
-      atrasoRef.current = key;
-      toast.custom(
-        (t) => (
-          <div
-            className="mx-auto inline-flex w-fit items-center gap-2.5 rounded-full border border-[#f2564b]/30 py-1.5 pr-2 pl-3 shadow-[0_6px_18px_-12px_rgba(0,0,0,0.6)]"
-            style={{
-              backgroundColor: "#1a0d0c",
-              backgroundImage:
-                "linear-gradient(150deg, rgba(242,86,75,0.12), rgba(242,86,75,0.02) 58%)",
+    if (!selectedId || atrasados === 0) return;
+    const id = `atraso-${selectedId}`;
+    toast.custom(
+      (t) => (
+        <div
+          className="mx-auto inline-flex w-fit items-center gap-2.5 rounded-full border border-[#f2564b]/30 py-1.5 pr-2 pl-3 shadow-[0_6px_18px_-12px_rgba(0,0,0,0.6)]"
+          style={{
+            backgroundColor: "#1a0d0c",
+            backgroundImage:
+              "linear-gradient(150deg, rgba(242,86,75,0.12), rgba(242,86,75,0.02) 58%)",
+          }}
+        >
+          <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#f2564b]/20">
+            <TriangleAlert className="size-3.5 text-[#ff6a5f]" strokeWidth={2.4} />
+          </span>
+          <span className="whitespace-nowrap text-[13px] font-semibold text-white">
+            {atrasados} em atraso
+          </span>
+          <button
+            onClick={() => {
+              router.push(`/passageiros?id=${selectedId}`);
+              toast.dismiss(t);
             }}
+            className="ml-1 rounded-full bg-[#f2564b] px-3.5 py-1 text-xs font-semibold text-white transition-transform duration-150 hover:bg-[#ff6a5f] active:scale-95"
           >
-            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#f2564b]/20">
-              <TriangleAlert className="size-3.5 text-[#ff6a5f]" strokeWidth={2.4} />
-            </span>
-            <span className="whitespace-nowrap text-[13px] font-semibold text-white">
-              {atrasados} em atraso
-            </span>
-            <button
-              onClick={() => {
-                router.push(`/excursao?id=${selected.id}`);
-                toast.dismiss(t);
-              }}
-              className="ml-1 rounded-full bg-[#f2564b] px-3.5 py-1 text-xs font-semibold text-white transition-transform duration-150 hover:bg-[#ff6a5f] active:scale-95"
-            >
-              Ver
-            </button>
-            <button
-              onClick={() => toast.dismiss(t)}
-              aria-label="Fechar"
-              className="grid size-6 shrink-0 place-items-center rounded-full text-white/45 transition-colors duration-150 hover:bg-white/10 hover:text-white"
-            >
-              <X className="size-3.5" strokeWidth={2.5} />
-            </button>
-          </div>
-        ),
-        { id: `atraso-${selected.id}`, duration: Infinity },
-      );
-    }
-  }, [selected, atrasados, router]);
+            Ver
+          </button>
+          <button
+            onClick={() => toast.dismiss(t)}
+            aria-label="Fechar"
+            className="grid size-6 shrink-0 place-items-center rounded-full text-white/45 transition-colors duration-150 hover:bg-white/10 hover:text-white"
+          >
+            <X className="size-3.5" strokeWidth={2.5} />
+          </button>
+        </div>
+      ),
+      { id, duration: Infinity },
+    );
+    return () => {
+      toast.dismiss(id);
+    };
+  }, [selectedId, atrasados, router]);
 
   return (
     <>
@@ -218,7 +251,7 @@ export default function HomePage() {
             </span>
             <p className="text-lg font-semibold">Nenhuma excursão</p>
             <p className="mt-1 mb-6 text-sm text-muted-foreground">Crie a primeira para começar.</p>
-            <Button size="lg" onClick={() => setNovaOpen(true)}>
+            <Button size="lg" onClick={abrirNova}>
               <Plus /> Nova excursão
             </Button>
           </div>
@@ -237,7 +270,7 @@ export default function HomePage() {
             </button>
 
             {/* 2. Herói — saldo em caixa */}
-            <section className="glass-card rounded-lg p-6">
+            <section className="glass-card glass-card-soft rounded-lg p-6">
               <p className="text-sm text-muted-foreground">Saldo em caixa</p>
               <p
                 className={`money mt-2 text-[2.5rem] font-semibold leading-none ${
@@ -259,20 +292,35 @@ export default function HomePage() {
             </section>
 
             {/* 3. Progresso de recebimento */}
-            <section className="glass-card glass-card-soft flex items-center gap-5 rounded-lg p-5">
+            <section className="glass-card glass-card-softer flex items-center gap-5 rounded-lg p-5">
               <DonutProgress recebido={recebido} total={aReceber} />
-              <div className="min-w-0 flex-1 space-y-3.5">
-                <div>
-                  <p className="text-xs text-faint">Recebido</p>
-                  <p className="money mt-0.5 text-xl font-semibold" style={{ color: "var(--progress, #46c98a)" }}>
-                    {brl(recebido)}
+              {aReceber === 0 ? (
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">Sem passageiros ainda</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Cadastre passageiros na excursão para acompanhar o recebimento aqui.
                   </p>
+                  <button
+                    onClick={() => router.push(`/passageiros?id=${selected.id}`)}
+                    className="mt-2.5 text-xs font-semibold text-primary hover:underline"
+                  >
+                    Abrir excursão →
+                  </button>
                 </div>
-                <div>
-                  <p className="text-xs text-faint">Falta receber</p>
-                  <p className="money mt-0.5 text-xl font-semibold">{brl(falta)}</p>
+              ) : (
+                <div className="min-w-0 flex-1 space-y-3.5">
+                  <div>
+                    <p className="text-xs text-faint">Recebido</p>
+                    <p className="money mt-0.5 text-xl font-semibold" style={{ color: "var(--progress, #46c98a)" }}>
+                      {brl(recebido)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-faint">Falta receber</p>
+                    <p className="money mt-0.5 text-xl font-semibold">{brl(falta)}</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </section>
 
             {/* Atraso agora é toast cancelável (efeito acima). */}
@@ -301,14 +349,14 @@ export default function HomePage() {
             )}
 
             {/* 6. Visão geral — barras comparativas */}
-            <section className="surface rounded-lg p-5">
+            <section className="glass-card glass-card-soft rounded-lg p-5">
               <p className="mb-5 text-sm font-medium text-muted-foreground">Visão geral</p>
               <OverviewBars
                 bars={[
-                  { label: "A receber", value: aReceber, cor: "#6b7280" },
-                  { label: "Recebido", value: recebido, cor: "#22c55e" },
-                  { label: "Despesas", value: totalDespesas, cor: "#f87171" },
-                  { label: "Lucro", value: lucro, cor: "#22c55e" },
+                  { label: "A receber", value: aReceber, cor: "#8b93f8" },
+                  { label: "Recebido", value: recebido, cor: "#34d399" },
+                  { label: "Despesas", value: totalDespesas, cor: "#fb7185" },
+                  { label: "Lucro", value: lucro, cor: lucro < 0 ? "#fb7185" : "#38bdf8" },
                 ]}
               />
             </section>
@@ -317,7 +365,7 @@ export default function HomePage() {
       </main>
 
       {!loading && (
-        <Fab label="Nova excursão" onClick={() => setNovaOpen(true)}>
+        <Fab label="Nova excursão" onClick={abrirNova}>
           <Plus className="size-6" strokeWidth={2} />
         </Fab>
       )}
@@ -359,6 +407,13 @@ export default function HomePage() {
                     {active && <Check className="size-4 shrink-0 text-primary" />}
                   </button>
                   <button
+                    onClick={() => abrirEdicao(e)}
+                    aria-label={`Editar ${e.nome}`}
+                    className="grid size-9 shrink-0 place-items-center rounded-full text-faint transition-colors duration-150 hover:bg-white/[0.06] hover:text-foreground"
+                  >
+                    <Pencil className="size-4" strokeWidth={1.75} />
+                  </button>
+                  <button
                     onClick={() => setExcluindo(e)}
                     aria-label={`Excluir ${e.nome}`}
                     className="mr-2 grid size-9 shrink-0 place-items-center rounded-full text-faint transition-colors duration-150 hover:bg-destructive/12 hover:text-destructive"
@@ -375,7 +430,7 @@ export default function HomePage() {
               className="w-full"
               onClick={() => {
                 setSwitchOpen(false);
-                setNovaOpen(true);
+                abrirNova();
               }}
             >
               <Plus /> Nova excursão
@@ -384,11 +439,11 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Nova excursão */}
+      {/* Nova / editar excursão */}
       <Dialog open={novaOpen} onOpenChange={setNovaOpen}>
         <DialogContent variant="sheet">
           <DialogHeader>
-            <DialogTitle>Nova excursão</DialogTitle>
+            <DialogTitle>{editingExc ? "Editar excursão" : "Nova excursão"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-1">
             <div className="space-y-1.5">
@@ -431,8 +486,8 @@ export default function HomePage() {
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleCreate} disabled={saving} className="w-full" size="lg">
-              {saving ? "Criando…" : "Criar excursão"}
+            <Button onClick={handleSave} disabled={saving} className="w-full" size="lg">
+              {saving ? "Salvando…" : editingExc ? "Salvar" : "Criar excursão"}
             </Button>
           </DialogFooter>
         </DialogContent>
