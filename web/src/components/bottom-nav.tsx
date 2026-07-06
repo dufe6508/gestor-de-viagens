@@ -4,7 +4,16 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Home, Users, Wallet, Menu, Ticket, BarChart3, type LucideIcon } from "lucide-react";
+import {
+  Home,
+  Users,
+  Wallet,
+  Menu,
+  Ticket,
+  BarChart3,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -77,6 +86,14 @@ export function BottomNav() {
               }}
             />
             <MaisRow icon={BarChart3} label="Relatórios" onClick={() => (setMaisOpen(false), toast("Relatórios — em breve"))} />
+            <MaisRow
+              icon={Settings}
+              label="Configurações"
+              onClick={() => {
+                setMaisOpen(false);
+                router.push("/configuracoes");
+              }}
+            />
           </div>
         </DialogContent>
       </Dialog>

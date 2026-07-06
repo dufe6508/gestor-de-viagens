@@ -42,3 +42,16 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Capacitor / Android (Android Studio) — commitar o projeto, não os artefatos de build
+android/.gradle/
+android/app/build/
+android/app/release/
+android/build/
+android/local.properties
+android/captures/
+android/.idea/
+*.keystore
+*.jks
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
