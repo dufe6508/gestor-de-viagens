@@ -400,13 +400,11 @@ Cada fase é revisável e utilizável sozinha.
 - ✅ **Passeios = fluxo de caixa puro** — entram nos relatórios de caixa como entrada + repasse
   (espelhados, líquido ~zero), nunca no lucro. Deixam de ser "só bloco operacional".
 
-**Decisões ainda em aberto:**
+**Decisões respondidas (usuário 2026-07-06) — PLANO APROVADO:**
 
-1. **Navegação:** Relatórios continua no sheet "Mais" (como hoje) ou entra na bottom nav
-   (ex.: Início · Passageiros · Despesas · **Relatórios** · Mais)? *(Recomendo promover à
-   barra — é a tela de maior valor estratégico.)*
-2. **Período padrão** ao abrir: "Este ano" (recomendado) ou "Tudo"?
-3. **Despesa sem data:** ok tornar `hoje` o valor sugerido no formulário de despesa?
-   (fortalece os gráficos temporais)
+1. **Navegação:** Relatórios **continua no sheet "Mais"** (padrão atual da bottom nav).
+2. **Período padrão** ao abrir: **"Este ano"**.
+3. **Despesa sem data:** sim — o formulário já sugere `hoje()` por padrão (verificado no
+   código; nenhuma mudança necessária).
 
-Aprovado o plano (com as respostas acima), a implementação começa pela F0/F1.
+Implementação iniciada pela F0 (fundação) + F1 (Visão geral).
