@@ -301,9 +301,23 @@ empresa
 - [~] **Auth DESABILITADO (dev)**. RLS liberado p/ `anon`. ⚠️ REATIVAR antes de dado real/produção.
 - [x] shadcn/ui + IBM Plex Sans + tokens (verde saldo / vermelho dívida) + Toaster
 - [x] Tela 1: lista de excursões + criar (`/`)
-- [x] Tela 2: dashboard financeiro + passageiros + registrar pagamento (`/excursao?id=`)
+- [x] Módulo Passageiros v2 (2026-07-06, substitui a antiga `/excursao?id=`):
+  - `/passageiros?id=` — tabela (Nº·Nome·Total·Pago·Falta·Status), busca, chips de status,
+    ordenação, seleção em massa (definir valor + parcelar), atalho pagar próxima parcela,
+    cadastro em série só com nome.
+  - `/passageiro?id=` — hero saldo + valor editável (redistribui parcelas abertas),
+    parcelas (pagar/reparcelar), histórico de pagamentos (editar/excluir), registrar
+    pagamento com preview de alocação.
+  - I/O em `web/src/lib/passageiros.ts`; lógica pura de dinheiro em `web/src/lib/parcelas.ts`
+    (vitest). Plano completo: `docs/superpowers/plans/2026-07-06-refactor-passageiros.md`.
+  - Decisões: **sem juros** (descartado); pagamento com abate automático em cascata
+    (valor livre → quita parcelas mais antigas; sobra vira avulso `parcela_id null`);
+    estado 100% derivado por views (`v_parcela_saldo` nova; `v_passageiro_saldo` com
+    `proximo_vencimento`); coluna `parcela.status` **deprecada** (não ler/escrever);
+    editar/excluir pagamento de vez é permitido (regra "nada se apaga" revogada p/
+    pagamentos, decisão do usuário 2026-07-06).
 - [x] Build OK + CRUD validado ponta-a-ponta via anon key (read/insert/delete)
-- [ ] Módulos restantes: despesas, passeios, ônibus/quartos (alocação), parcelas
+- [ ] Módulos restantes: passeios, ônibus/quartos (alocação)
 - [ ] Integrar Capacitor → gerar APK (fase final)
 
 > Nota RLS: política `USING(true)` p/ `authenticated` = WARN intencional. Só a tia tem conta no MVP.
