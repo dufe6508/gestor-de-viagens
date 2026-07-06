@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
-import { ArrowDownRight, ArrowUpRight, TrendingUp } from "lucide-react";
-import { brl } from "@/lib/format";
+import { useMemo, useState } from "react";
+import { ArrowDownRight, ArrowUpRight, ChevronDown, TrendingUp } from "lucide-react";
+import { brl, brl0 } from "@/lib/format";
 import {
   acumular,
   deltaPct,
@@ -23,7 +23,14 @@ import {
 } from "@/lib/relatorios";
 import { KpiCard } from "@/components/relatorios/kpi-card";
 import { ChartCard } from "@/components/relatorios/chart-card";
-import { FlowBars, LegendBar, Sparkline, type FlowMonth } from "@/components/charts";
+import {
+  FlowBars,
+  ForecastChart,
+  LegendBar,
+  Sparkline,
+  type FlowMonth,
+  type ForecastPoint,
+} from "@/components/charts";
 import { renderWidgets, type Widget } from "@/components/relatorios/registry";
 
 /*
@@ -34,6 +41,7 @@ import { renderWidgets, type Widget } from "@/components/relatorios/registry";
 
 // Cores de forma de pagamento (dessaturadas, fora da paleta semântica).
 const CORES_FORMA = ["#7fa8c0", "#8b93f8", "#79c9a0", "#c7a06a", "#d08a7d", "#9d8ec0"];
+const EXTRATO_PREVIEW = 6;
 
 interface Linha {
   tipo: "entrada" | "saida";
@@ -53,6 +61,7 @@ export function Financeiro({
   excursaoId: string;
 }) {
   const hoje = hojeISO();
+  const [extratoAberto, setExtratoAberto] = useState(false);
 
   const m = useMemo(() => {
     const pagamentos = filtrarPorExcursao(dataset.pagamentos, excursaoId);
@@ -94,11 +103,8 @@ export function Financeiro({
       futuras,
     );
     const previstoTotal = prevMes.reduce((s, v) => s + v, 0);
-    const forecast: FlowMonth[] = futuras.map((c, i) => ({
-      label: labelMes(c),
-      entrada: prevMes[i],
-      saida: 0,
-    }));
+    const forecast: ForecastPoint[] = futuras.map((c, i) => ({ label: labelMes(c), value: prevMes[i] }));
+    const proxMes = forecast[0]?.value ?? 0;
 
     // Mix de formas de pagamento no período.
     const porForma = new Map<string, number>();
@@ -120,11 +126,11 @@ export function Financeiro({
 
     // Extrato: entradas + saídas + repasses de passeio, mais recentes primeiro.
     const extrato: Linha[] = [
-      ...pagamentos.map((p) => ({ tipo: "entrada" as const, rotulo: "Pagamento", sub: p.forma || "recebido", valor: p.valor, data: p.data })),
-      ...passeios.map((p) => ({ tipo: "entrada" as const, rotulo: p.passeio_nome, sub: "passeio (entra)", valor: p.valor, data: p.data })),
+      ...pagamentos.map((p) => ({ tipo: "entrada" as const, rotulo: "Pagamento", sub: p.forma || "Recebido", valor: p.valor, data: p.data })),
+      ...passeios.map((p) => ({ tipo: "entrada" as const, rotulo: p.passeio_nome, sub: "Passeio (entra)", valor: p.valor, data: p.data })),
       ...despesas.map((d) => ({ tipo: "saida" as const, rotulo: d.nome, sub: d.categoria_nome, valor: d.valor, data: d.data })),
-      ...passeios.map((p) => ({ tipo: "saida" as const, rotulo: p.passeio_nome, sub: "passeio (repasse)", valor: p.valor, data: p.data })),
-    ].sort((a, b) => (b.data ?? "").localeCompare(a.data ?? "")).slice(0, 40);
+      ...passeios.map((p) => ({ tipo: "saida" as const, rotulo: p.passeio_nome, sub: "Passeio (repasse)", valor: p.valor, data: p.data })),
+    ].sort((a, b) => (b.data ?? "").localeCompare(a.data ?? ""));
 
     return {
       entradasPer,
@@ -135,22 +141,26 @@ export function Financeiro({
       evolucao,
       forecast,
       previstoTotal,
+      proxMes,
       formas,
       extrato,
       temMovimento: entradasBrutas.length > 0 || saidasBrutas.length > 0,
     };
   }, [dataset, periodo, excursaoId, hoje]);
 
+  const extratoVisivel = extratoAberto ? m.extrato : m.extrato.slice(0, EXTRATO_PREVIEW);
+
   const widgets: Widget[] = [
     {
       id: "kpis-fluxo",
       node: (
-        <div className="grid grid-cols-3 gap-3">
-          <KpiCard label="Entradas" valor={brl(m.entradasPer)} tone="positivo" icon={ArrowUpRight} />
-          <KpiCard label="Saídas" valor={brl(m.saidasPer)} tone="negativo" icon={ArrowDownRight} />
+        <div className="grid grid-cols-3 gap-2.5">
+          <KpiCard dense label="Entradas" valor={brl0(m.entradasPer)} tone="positivo" icon={ArrowUpRight} />
+          <KpiCard dense label="Saídas" valor={brl0(m.saidasPer)} tone="negativo" icon={ArrowDownRight} />
           <KpiCard
+            dense
             label="Líquido"
-            valor={brl(m.liquidoPer)}
+            valor={brl0(m.liquidoPer)}
             tone={m.liquidoPer < 0 ? "negativo" : "neutro"}
             delta={m.deltaLiquido != null ? { pct: m.deltaLiquido, melhorSubir: true } : null}
             icon={TrendingUp}
@@ -188,15 +198,26 @@ export function Financeiro({
       node: (
         <ChartCard
           titulo="Previsão de recebimento"
-          subtitulo={
-            m.previstoTotal > 0
-              ? `${brl(m.previstoTotal)} a receber nos próximos 6 meses`
-              : "Parcelas a vencer por mês"
-          }
+          subtitulo="Parcelas a vencer nos próximos 6 meses"
           vazio={m.previstoTotal === 0 && "Nenhuma parcela a vencer"}
         >
-          <FlowBars months={m.forecast} ghostFrom={0} />
-          <p className="mt-3 text-[11px] text-faint">Projeção — parcelas em aberto por mês de vencimento.</p>
+          {/* Destaques do forecast */}
+          <div className="mb-4 flex gap-6">
+            <div>
+              <p className="text-[11px] text-faint">Total previsto</p>
+              <p className="money mt-0.5 text-lg font-semibold text-foreground">{brl(m.previstoTotal)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-faint">Próximo mês</p>
+              <p className="money mt-0.5 text-lg font-semibold" style={{ color: "#8b93f8" }}>
+                {brl(m.proxMes)}
+              </p>
+            </div>
+          </div>
+          <ForecastChart points={m.forecast} />
+          <p className="mt-3 text-[11px] text-faint">
+            Projeção — saldo em aberto por mês de vencimento (valores em milhares “k”).
+          </p>
         </ChartCard>
       ),
     },
@@ -218,7 +239,7 @@ export function Financeiro({
           vazio={m.extrato.length === 0 && "Sem lançamentos"}
         >
           <ul className="divide-y divide-white/[0.05]">
-            {m.extrato.map((l, i) => (
+            {extratoVisivel.map((l, i) => (
               <li key={i} className="flex items-center gap-3 py-2.5">
                 <span
                   className={`grid size-7 shrink-0 place-items-center rounded-full ${
@@ -249,6 +270,18 @@ export function Financeiro({
               </li>
             ))}
           </ul>
+          {m.extrato.length > EXTRATO_PREVIEW && (
+            <button
+              onClick={() => setExtratoAberto((v) => !v)}
+              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md py-2 text-[13px] font-medium text-muted-foreground transition-colors duration-150 hover:bg-white/[0.04] hover:text-foreground"
+            >
+              {extratoAberto ? "Ver menos" : `Ver todos (${m.extrato.length})`}
+              <ChevronDown
+                className={`size-4 transition-transform duration-200 ${extratoAberto ? "rotate-180" : ""}`}
+                strokeWidth={1.75}
+              />
+            </button>
+          )}
         </ChartCard>
       ),
     },

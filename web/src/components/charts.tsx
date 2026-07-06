@@ -629,3 +629,86 @@ export function LegendBar({ segments }: { segments: LegendSegment[] }) {
     </div>
   );
 }
+
+export interface ForecastPoint {
+  label: string;
+  value: number;
+}
+
+/**
+ * Previsão de recebimento — barras "projetadas" (fill translúcido + topo
+ * tracejado) com o valor rotulado acima de cada mês. Destaca o maior mês e
+ * mostra rótulo de eixo. Altura fixa: não quebra o layout. DESIGN.md §6.
+ */
+export function ForecastChart({
+  points,
+  height = 150,
+  cor = "#8b93f8",
+}: {
+  points: ForecastPoint[];
+  height?: number;
+  cor?: string;
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
+
+  const max = Math.max(...points.map((p) => p.value), 1);
+  const maiorIdx = points.reduce((mi, p, i, arr) => (p.value > arr[mi].value ? i : mi), 0);
+
+  const compact = (v: number) => {
+    if (v <= 0) return "";
+    if (v >= 1000) {
+      const k = v / 1000;
+      return `${Number.isInteger(k) ? k : k.toFixed(1).replace(".", ",")}k`;
+    }
+    return String(Math.round(v));
+  };
+
+  return (
+    <div>
+      <div className="flex items-end justify-between gap-2.5" style={{ height }}>
+        {points.map((p, i) => {
+          const pct = (p.value / max) * 100;
+          const destaque = i === maiorIdx && p.value > 0;
+          const zero = p.value <= 0;
+          return (
+            <div key={`${p.label}-${i}`} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
+              {/* valor acima da barra */}
+              <span
+                className={`money text-[11px] font-semibold tabular-nums transition-opacity duration-500 ${
+                  zero ? "text-transparent" : destaque ? "text-foreground" : "text-faint"
+                }`}
+                style={{ opacity: mounted ? 1 : 0 }}
+              >
+                {compact(p.value)}
+              </span>
+              <div
+                className="w-full max-w-9 rounded-t-[5px] transition-[height] duration-700 ease-(--ease-swift) motion-reduce:transition-none"
+                style={{
+                  height: mounted ? `${Math.max(pct, zero ? 0 : 3)}%` : 0,
+                  minHeight: zero ? 2 : undefined,
+                  backgroundColor: zero ? "rgb(255 255 255 / 0.05)" : `${cor}${destaque ? "" : "88"}`,
+                  border: zero ? undefined : `1.5px dashed ${cor}`,
+                  transitionDelay: mounted ? "0ms" : `${i * 70}ms`,
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-2 flex justify-between gap-2.5">
+        {points.map((p, i) => (
+          <span
+            key={`${p.label}-${i}`}
+            className={`flex-1 text-center text-[11px] capitalize ${i === maiorIdx && p.value > 0 ? "text-muted-foreground" : "text-faint"}`}
+          >
+            {p.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}

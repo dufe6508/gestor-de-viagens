@@ -12,7 +12,6 @@ import { Financeiro } from "@/components/relatorios/secoes/financeiro";
 import { Excursoes } from "@/components/relatorios/secoes/excursoes";
 import { Pagamentos } from "@/components/relatorios/secoes/pagamentos";
 import { Despesas } from "@/components/relatorios/secoes/despesas";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type TabId = "visao" | "financeiro" | "excursoes" | "pagamentos" | "despesas";
 
@@ -80,51 +79,55 @@ function RelatoriosView() {
         <h1 className="flex-1 text-[1.375rem] font-semibold tracking-tight">Relatórios</h1>
       </header>
 
-      <Tabs value={tab} onValueChange={(v) => setParam({ tab: String(v) })}>
-        <TabsList variant="line" className="mb-4 h-auto w-full justify-start gap-1 overflow-x-auto [scrollbar-width:none]">
-          {TABS.map((t) => (
-            <TabsTrigger key={t.id} value={t.id} className="shrink-0 flex-none px-2.5 py-1.5">
+      {/* Abas em chips que quebram em linhas — todas visíveis, sem arrastar */}
+      <div role="tablist" className="mb-4 flex flex-wrap gap-1.5">
+        {TABS.map((t) => {
+          const ativo = t.id === tab;
+          return (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={ativo}
+              onClick={() => setParam({ tab: t.id })}
+              className={`rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-150 active:scale-[0.97] ${
+                ativo
+                  ? "bg-primary text-primary-foreground"
+                  : "surface text-muted-foreground hover:text-foreground"
+              }`}
+            >
               {t.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+            </button>
+          );
+        })}
+      </div>
 
-        <div className="mb-4">
-          <FiltrosBar
-            periodo={periodo}
-            excursaoId={excursaoId}
-            excursoes={dataset?.excursoes ?? []}
-            onPeriodo={(p) => setParam({ periodo: p })}
-            onExcursao={(id) => setParam({ excursao: id })}
-          />
+      <div className="mb-4">
+        <FiltrosBar
+          periodo={periodo}
+          excursaoId={excursaoId}
+          excursoes={dataset?.excursoes ?? []}
+          onPeriodo={(p) => setParam({ periodo: p })}
+          onExcursao={(id) => setParam({ excursao: id })}
+        />
+      </div>
+
+      {loading || !dataset ? (
+        <div className="space-y-4">
+          <div className="h-44 animate-pulse rounded-lg bg-white/[0.04]" />
+          <div className="h-28 animate-pulse rounded-lg bg-white/[0.04]" />
+          <div className="h-40 animate-pulse rounded-lg bg-white/[0.04]" />
         </div>
-
-        {loading || !dataset ? (
-          <div className="space-y-4">
-            <div className="h-44 animate-pulse rounded-lg bg-white/[0.04]" />
-            <div className="h-28 animate-pulse rounded-lg bg-white/[0.04]" />
-            <div className="h-40 animate-pulse rounded-lg bg-white/[0.04]" />
-          </div>
-        ) : (
-          <>
-            <TabsContent value="visao">
-              <VisaoGeral dataset={dataset} periodo={periodo} excursaoId={excursaoId} />
-            </TabsContent>
-            <TabsContent value="financeiro">
-              <Financeiro dataset={dataset} periodo={periodo} excursaoId={excursaoId} />
-            </TabsContent>
-            <TabsContent value="excursoes">
-              <Excursoes dataset={dataset} excursaoId={excursaoId} />
-            </TabsContent>
-            <TabsContent value="pagamentos">
-              <Pagamentos dataset={dataset} excursaoId={excursaoId} />
-            </TabsContent>
-            <TabsContent value="despesas">
-              <Despesas dataset={dataset} periodo={periodo} excursaoId={excursaoId} />
-            </TabsContent>
-          </>
-        )}
-      </Tabs>
+      ) : tab === "visao" ? (
+        <VisaoGeral dataset={dataset} periodo={periodo} excursaoId={excursaoId} />
+      ) : tab === "financeiro" ? (
+        <Financeiro dataset={dataset} periodo={periodo} excursaoId={excursaoId} />
+      ) : tab === "excursoes" ? (
+        <Excursoes dataset={dataset} excursaoId={excursaoId} />
+      ) : tab === "pagamentos" ? (
+        <Pagamentos dataset={dataset} excursaoId={excursaoId} />
+      ) : (
+        <Despesas dataset={dataset} periodo={periodo} excursaoId={excursaoId} />
+      )}
     </main>
   );
 }

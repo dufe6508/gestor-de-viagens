@@ -1,8 +1,15 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CalendarClock, CalendarDays, ChevronRight, Wallet } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  CalendarDays,
+  ChevronDown,
+  ChevronRight,
+  Wallet,
+} from "lucide-react";
 import { brl } from "@/lib/format";
 import {
   agingBucket,
@@ -27,6 +34,7 @@ import { renderWidgets, type Widget } from "@/components/relatorios/registry";
 /*
  * Aba Pagamentos — cobrança (plano §4, aba 4). Relatório ACIONÁVEL: cada
  * parcela/devedor leva à tela do passageiro para registrar o pagamento na hora.
+ * A agenda é retrátil: cada faixa abre/fecha; a de atrasadas já vem aberta.
  */
 
 const FAIXA_LABEL: Record<FaixaVencimento, string> = {
@@ -46,6 +54,15 @@ export function Pagamentos({
 }) {
   const router = useRouter();
   const hoje = hojeISO();
+  // Faixas abertas da agenda (retrátil). Atrasadas já vem aberta.
+  const [abertos, setAbertos] = useState<Set<string>>(() => new Set(["atrasada"]));
+  const toggle = (id: string) =>
+    setAbertos((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const m = useMemo(() => {
     const parcelas = filtrarPorExcursao(dataset.parcelas, excursaoId);
@@ -129,6 +146,16 @@ export function Pagamentos({
     { id: "vencida", label: "Vencidas", cor: "var(--destructive)", valor: m.valorVencido, pct: frac(m.valorVencido, m.totalReceber) },
   ];
 
+  const gruposAgenda: { id: string; titulo: string; tone: "negativo" | "alerta" | "neutro"; itens: ParcelaRow[] }[] = [
+    ...FAIXA_ORDEM.map((f) => ({
+      id: f,
+      titulo: FAIXA_LABEL[f],
+      tone: (f === "atrasada" ? "negativo" : f === "semana" ? "alerta" : "neutro") as "negativo" | "alerta" | "neutro",
+      itens: m.agenda.get(f)!,
+    })),
+    { id: "semdata", titulo: "Sem data", tone: "neutro" as const, itens: m.semData },
+  ].filter((g) => g.itens.length > 0);
+
   const widgets: Widget[] = [
     {
       id: "kpis-cobranca",
@@ -170,40 +197,23 @@ export function Pagamentos({
       node: (
         <ChartCard
           titulo="Agenda de vencimentos"
-          subtitulo="Toque para abrir o passageiro e receber"
-          vazio={
-            [...m.agenda.values()].every((a) => a.length === 0) &&
-            m.semData.length === 0 &&
-            "Nada em aberto — tudo quitado"
-          }
+          subtitulo="Toque numa faixa para abrir; no passageiro, para receber"
+          vazio={gruposAgenda.length === 0 && "Nada em aberto — tudo quitado"}
         >
-          <div className="space-y-4">
-            {FAIXA_ORDEM.map((f) => {
-              const itens = m.agenda.get(f)!;
-              if (itens.length === 0) return null;
-              const total = itens.reduce((s, p) => s + p.saldo, 0);
-              return (
-                <GrupoAgenda
-                  key={f}
-                  titulo={FAIXA_LABEL[f]}
-                  total={total}
-                  tone={f === "atrasada" ? "negativo" : f === "semana" ? "alerta" : "neutro"}
-                  itens={itens}
-                  hoje={hoje}
-                  onItem={irPassageiro}
-                />
-              );
-            })}
-            {m.semData.length > 0 && (
+          <div className="space-y-2">
+            {gruposAgenda.map((g) => (
               <GrupoAgenda
-                titulo="Sem data"
-                total={m.semData.reduce((s, p) => s + p.saldo, 0)}
-                tone="neutro"
-                itens={m.semData}
-                hoje={hoje}
+                key={g.id}
+                titulo={g.titulo}
+                total={g.itens.reduce((s, p) => s + p.saldo, 0)}
+                qtd={g.itens.length}
+                tone={g.tone}
+                itens={g.itens}
+                aberto={abertos.has(g.id)}
+                onToggle={() => toggle(g.id)}
                 onItem={irPassageiro}
               />
-            )}
+            ))}
           </div>
         </ChartCard>
       ),
@@ -251,46 +261,61 @@ function frac(v: number, total: number): number {
 function GrupoAgenda({
   titulo,
   total,
+  qtd,
   tone,
   itens,
-  hoje,
+  aberto,
+  onToggle,
   onItem,
 }: {
   titulo: string;
   total: number;
+  qtd: number;
   tone: "negativo" | "alerta" | "neutro";
   itens: ParcelaRow[];
-  hoje: string;
+  aberto: boolean;
+  onToggle: () => void;
   onItem: (id: string) => void;
 }) {
+  const corPonto =
+    tone === "negativo" ? "var(--destructive)" : tone === "alerta" ? "var(--warning)" : "var(--muted-foreground)";
   const corTitulo =
     tone === "negativo" ? "text-destructive" : tone === "alerta" ? "text-warning" : "text-muted-foreground";
   return (
-    <div>
-      <div className="mb-1.5 flex items-baseline justify-between">
-        <span className={`text-xs font-semibold ${corTitulo}`}>{titulo}</span>
-        <span className="money text-xs text-faint">{brl(total)}</span>
-      </div>
-      <ul className="space-y-1">
-        {itens.map((p, i) => {
-          const venc = p.vencimento;
-          return (
+    <div className="overflow-hidden rounded-md bg-white/[0.03]">
+      <button
+        onClick={onToggle}
+        aria-expanded={aberto}
+        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors duration-150 hover:bg-white/[0.03]"
+      >
+        <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: corPonto }} />
+        <span className={`text-sm font-semibold ${corTitulo}`}>{titulo}</span>
+        <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-medium text-faint">{qtd}</span>
+        <span className="ml-auto money text-xs font-semibold text-muted-foreground">{brl(total)}</span>
+        <ChevronDown
+          className={`size-4 shrink-0 text-faint transition-transform duration-200 ${aberto ? "rotate-180" : ""}`}
+          strokeWidth={1.75}
+        />
+      </button>
+      {aberto && (
+        <ul className="space-y-1 px-1.5 pb-1.5">
+          {itens.map((p, i) => (
             <li key={`${p.passageiro_id}-${i}`}>
               <button
                 onClick={() => onItem(p.passageiro_id)}
-                className="flex w-full items-center gap-3 rounded-md bg-white/[0.03] px-3 py-2 text-left transition-colors duration-150 hover:bg-white/[0.06] active:scale-[0.99]"
+                className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors duration-150 hover:bg-white/[0.05] active:scale-[0.99]"
               >
                 <span className="min-w-0 flex-1 truncate text-sm text-foreground">{p.nome}</span>
-                {venc && (
-                  <span className="money shrink-0 text-[11px] text-faint">{dataCurta(venc)}</span>
+                {p.vencimento && (
+                  <span className="money shrink-0 text-[11px] text-faint">{dataCurta(p.vencimento)}</span>
                 )}
                 <span className="money shrink-0 text-sm font-semibold text-foreground">{brl(p.saldo)}</span>
                 <ChevronRight className="size-4 shrink-0 text-faint" strokeWidth={1.75} />
               </button>
             </li>
-          );
-        })}
-      </ul>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

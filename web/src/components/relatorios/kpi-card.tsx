@@ -19,6 +19,7 @@ export function KpiCard({
   delta,
   tone = "neutro",
   icon: Icon,
+  dense = false,
 }: {
   label: string;
   valor: string;
@@ -26,6 +27,7 @@ export function KpiCard({
   delta?: KpiDelta | null;
   tone?: "neutro" | "positivo" | "negativo" | "alerta";
   icon?: LucideIcon;
+  dense?: boolean; // 3-up: fonte/padding menores p/ o valor caber
 }) {
   const corValor =
     tone === "negativo"
@@ -37,12 +39,18 @@ export function KpiCard({
           : "text-foreground";
 
   return (
-    <div className="glass-card glass-card-softer rounded-lg p-4">
+    <div className={`glass-card glass-card-softer rounded-lg ${dense ? "p-3" : "p-4"}`}>
       <div className="flex items-center gap-1.5">
         {Icon && <Icon className="size-3.5 shrink-0 text-faint" strokeWidth={1.75} aria-hidden />}
         <p className="truncate text-xs text-faint">{label}</p>
       </div>
-      <p className={`money mt-1.5 text-xl font-semibold leading-tight ${corValor}`}>{valor}</p>
+      <p
+        className={`money mt-1.5 font-semibold leading-tight ${corValor} ${
+          dense ? "text-[0.9375rem] tracking-tight" : "text-xl"
+        }`}
+      >
+        {valor}
+      </p>
       {(delta != null || hint) && (
         <div className="mt-1.5 flex items-center gap-2">
           {delta != null && <DeltaBadge delta={delta} />}
