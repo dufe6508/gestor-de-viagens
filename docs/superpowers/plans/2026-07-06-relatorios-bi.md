@@ -351,15 +351,15 @@ contexto (aba + filtros aplicados). CSV com separador `;` e vírgula decimal (Ex
 
 ## 9. Roadmap de implementação (após aprovação)
 
-| Fase | Entrega | Valor |
-|---|---|---|
-| **F0** | Fundação: rota `/relatorios`, tabs, filtros globais ↔ URL, `relatorios.ts` + `metricas.ts` com testes, `KpiCard`/`ChartCard` + **registry de widgets** | esqueleto navegável |
-| **F1** | **Visão geral** completa (herói, KPIs, sparkline, atenção, ranking) + ligar item da bottom nav | a empresa em 10 segundos |
-| **F2** | **Pagamentos** (agenda de vencimentos, vencidas, devedores) | ataca a dor nº 1 (cobrança) |
-| **F3** | **Financeiro** (fluxo mensal c/ passeios pass-through, evolução, **forecast**, extrato) | visão de caixa e futuro |
-| **F4** | **Excursões** (comparativo + raio-X) e **Despesas** (donut, evolução, top 10) | análise profunda |
-| **F5** | **Personalização dos dashboards** (modo editar: reordenar/ocultar widgets, restaurar padrão) | dashboards editáveis |
-| Depois | Exportação (§8, adiada), Operacional (ônibus/quartos), metas/orçamento, light theme | evolução contínua |
+| Fase | Entrega | Valor | Status |
+|---|---|---|---|
+| **F0** | Fundação: rota `/relatorios`, tabs, filtros globais ↔ URL, `relatorios.ts` + `metricas.ts` com testes, `KpiCard`/`ChartCard` + **registry de widgets** | esqueleto navegável | ✅ feito |
+| **F1** | **Visão geral** completa (herói, KPIs, sparkline, atenção, ranking) + ligar item da bottom nav | a empresa em 10 segundos | ✅ feito |
+| **F2** | **Pagamentos** (agenda de vencimentos, vencidas, devedores) | ataca a dor nº 1 (cobrança) | ✅ feito |
+| **F3** | **Financeiro** (fluxo mensal c/ passeios pass-through, evolução, **forecast**, extrato) | visão de caixa e futuro | ✅ feito |
+| **F4** | **Excursões** (comparativo + raio-X) e **Despesas** (donut, evolução, top 10) | análise profunda | ✅ feito |
+| **F5** | **Personalização dos dashboards** (modo editar: reordenar/ocultar widgets, restaurar padrão) | dashboards editáveis | ⏳ registry pronto; falta a UI de edição |
+| Depois | Exportação (§8, adiada), Operacional (ônibus/quartos), metas/orçamento, light theme | evolução contínua | — |
 
 Ordem F2 antes de F3 é proposital: cobrança gera dinheiro; gráfico bonito não.
 Personalização por último de propósito: primeiro os widgets existem (F1–F4) já montados

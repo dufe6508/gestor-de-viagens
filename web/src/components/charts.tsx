@@ -469,3 +469,163 @@ export function RankBars({ rows }: { rows: RankRow[] }) {
     </ul>
   );
 }
+
+export interface FlowMonth {
+  label: string;
+  entrada: number;
+  saida: number;
+}
+
+/**
+ * Fluxo de caixa — barras pareadas entrada (verde) × saída (vermelho) por mês,
+ * numa grade única. Hover/touch destaca o mês e mostra os dois valores. Barras
+ * projetadas (forecast) usam `ghost` = mesma cor esmaecida + tracejado.
+ */
+export function FlowBars({
+  months,
+  height = 150,
+  ghostFrom,
+}: {
+  months: FlowMonth[];
+  height?: number;
+  ghostFrom?: number; // índice a partir do qual as barras são projeção
+}) {
+  const [mounted, setMounted] = useState(false);
+  const [hover, setHover] = useState<number | null>(null);
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
+
+  const max = Math.max(...months.flatMap((m) => [m.entrada, m.saida]), 1);
+  const h = hover != null ? months[hover] : null;
+
+  return (
+    <div>
+      <div className="relative flex items-end justify-between gap-2" style={{ height }}>
+        {months.map((m, i) => {
+          const ghost = ghostFrom != null && i >= ghostFrom;
+          const dim = hover != null && hover !== i;
+          return (
+            <div
+              key={`${m.label}-${i}`}
+              className="flex h-full flex-1 items-end justify-center gap-[3px]"
+              onPointerEnter={() => setHover(i)}
+              onPointerLeave={() => setHover(null)}
+            >
+              <Col value={m.entrada} max={max} height={height} cor="var(--progress, #46c98a)" mounted={mounted} ghost={ghost} dim={dim} delay={i * 40} />
+              <Col value={m.saida} max={max} height={height} cor="var(--destructive)" mounted={mounted} ghost={ghost} dim={dim} delay={i * 40 + 20} />
+            </div>
+          );
+        })}
+
+        {h != null && hover != null && (
+          <div
+            className="glass-float pointer-events-none absolute -top-1 z-10 -translate-y-full rounded-md px-2.5 py-1.5 text-[11px] whitespace-nowrap"
+            style={{
+              left: `${((hover + 0.5) / months.length) * 100}%`,
+              transform: `translateX(-50%) translateY(-100%)`,
+            }}
+          >
+            <p className="mb-0.5 capitalize text-faint">{h.label}</p>
+            <p className="money text-[var(--progress,#46c98a)]">↑ {brl(h.entrada)}</p>
+            <p className="money text-destructive">↓ {brl(h.saida)}</p>
+          </div>
+        )}
+      </div>
+      <div className="mt-2 flex justify-between gap-2">
+        {months.map((m, i) => (
+          <span key={`${m.label}-${i}`} className={`flex-1 text-center text-[11px] capitalize ${hover === i ? "text-foreground" : "text-faint"}`}>
+            {m.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Col({
+  value,
+  max,
+  height,
+  cor,
+  mounted,
+  ghost,
+  dim,
+  delay,
+}: {
+  value: number;
+  max: number;
+  height: number;
+  cor: string;
+  mounted: boolean;
+  ghost: boolean;
+  dim: boolean;
+  delay: number;
+}) {
+  const pct = (value / max) * 100;
+  return (
+    <div
+      className="w-full max-w-4 rounded-t-[4px] transition-[height,opacity] duration-600 ease-(--ease-swift) motion-reduce:transition-none"
+      style={{
+        height: mounted ? `${Math.max((pct / 100) * height, value > 0 ? 3 : 0)}px` : 0,
+        backgroundColor: ghost ? "transparent" : cor,
+        border: ghost ? `1.5px dashed ${cor}` : undefined,
+        opacity: dim ? 0.4 : ghost ? 0.7 : 1,
+        transitionDelay: mounted ? "0ms" : `${delay}ms`,
+      }}
+    />
+  );
+}
+
+export interface LegendSegment {
+  id: string;
+  label: string;
+  cor: string;
+  valor: number;
+  pct: number; // 0..1
+}
+
+/**
+ * Barra de proporção com legenda tocável abaixo — cor nunca é o único sinal
+ * (cada segmento tem rótulo + valor na legenda). Para status de parcelas,
+ * formas de pagamento, origem do recurso.
+ */
+export function LegendBar({ segments }: { segments: LegendSegment[] }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
+  const visiveis = segments.filter((s) => s.pct > 0);
+
+  return (
+    <div>
+      <div className="flex h-3.5 w-full items-stretch gap-[3px]">
+        {visiveis.map((s, i) => (
+          <div
+            key={s.id}
+            className="h-full min-w-[6px] rounded-full transition-[width] duration-700 ease-(--ease-move) motion-reduce:transition-none"
+            style={{
+              width: mounted ? `${Math.max(s.pct * 100, 2)}%` : "0%",
+              backgroundColor: s.cor,
+              transitionDelay: mounted ? "0ms" : `${i * 70}ms`,
+            }}
+          />
+        ))}
+      </div>
+      <ul className="mt-3.5 space-y-2">
+        {segments.map((s) => (
+          <li key={s.id} className="flex items-center gap-2.5">
+            <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.cor }} />
+            <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">{s.label}</span>
+            <span className="money shrink-0 text-[13px] font-semibold text-foreground">{brl(s.valor)}</span>
+            <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-faint">
+              {Math.round(s.pct * 100)}%
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

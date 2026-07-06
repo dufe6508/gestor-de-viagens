@@ -24,47 +24,80 @@ export interface ResumoRow {
   lucro: number;
 }
 
-// Entrada (pagamento) ou saída (despesa) com data — base das séries temporais.
-export interface MovimentoExcursao {
+// Entrada real (pagamento) — base das séries temporais e do mix de formas.
+export interface PagamentoMov {
   valor: number;
   data: string | null;
   excursao_id: string;
+  forma: string | null;
+}
+
+// Saída (despesa) já com a categoria resolvida — base do donut/evolução de despesas.
+export interface DespesaMov {
+  valor: number;
+  data: string | null;
+  excursao_id: string;
+  nome: string;
+  categoria_id: string | null;
+  categoria_nome: string;
+  categoria_cor: string;
+}
+
+// Passeio pago = fluxo de caixa puro (entra do passageiro, sai no repasse à agência).
+// Decisão do usuário (2026-07-06): aparece no caixa como entrada + repasse (líquido
+// zero), pela data do passeio (participante não tem data própria — só o bool pago).
+export interface PasseioMov {
+  valor: number;
+  data: string | null;
+  excursao_id: string;
+  passeio_nome: string;
 }
 
 export interface PassageiroStatusRow {
   passageiro_id: string;
   excursao_id: string;
   nome: string;
+  valor_total: number;
+  valor_pago: number;
   saldo: number;
   status_pagamento: StatusPagamento;
 }
 
-// Parcela não paga (pendente ou atrasada) — base de vencidas/agenda/forecast.
-export interface ParcelaAbertaRow {
+export type StatusParcela = "paga" | "pendente" | "atrasada";
+
+export interface ParcelaRow {
   passageiro_id: string;
   excursao_id: string;
   nome: string;
   vencimento: string | null;
+  valor: number;
   saldo: number;
-  status: "pendente" | "atrasada";
+  status: StatusParcela;
 }
 
 export interface DatasetRelatorios {
   excursoes: ExcursaoRef[];
   resumos: ResumoRow[];
-  pagamentos: MovimentoExcursao[];
-  despesas: MovimentoExcursao[];
+  pagamentos: PagamentoMov[];
+  despesas: DespesaMov[];
+  passeios: PasseioMov[];
   passageiros: PassageiroStatusRow[];
-  parcelasAbertas: ParcelaAbertaRow[];
+  parcelas: ParcelaRow[]; // TODAS (inclui pagas) — abas derivam abertas por filtro
 }
 
 export const hojeISO = () => new Date().toISOString().slice(0, 10);
+
+const COR_FALLBACK = "#94a3b8";
 
 export function filtrarPorExcursao<T extends { excursao_id: string }>(
   rows: T[],
   excursaoId: string, // "todas" = sem corte
 ): T[] {
   return excursaoId === "todas" ? rows : rows.filter((r) => r.excursao_id === excursaoId);
+}
+
+export function parcelasAbertas(parcelas: ParcelaRow[]): ParcelaRow[] {
+  return parcelas.filter((p) => p.status !== "paga");
 }
 
 export async function getDatasetRelatorios(): Promise<DatasetRelatorios> {
@@ -76,23 +109,30 @@ export async function getDatasetRelatorios(): Promise<DatasetRelatorios> {
     { data: pax, error: e5 },
     { data: saldos, error: e6 },
     { data: parc, error: e7 },
+    { data: pass, error: e8 },
   ] = await Promise.all([
     supabase.from("excursao").select("id, nome, status"),
     supabase
       .from("v_resumo_excursao")
       .select("excursao_id, nome, total_a_receber, total_recebido, total_despesas"),
-    supabase.from("pagamento").select("valor, data, passageiro:passageiro_id(excursao_id)"),
-    supabase.from("despesa").select("valor, data, excursao_id"),
-    supabase.from("passageiro").select("id, excursao_id, cliente:cliente_id(nome)"),
+    supabase
+      .from("pagamento")
+      .select("valor, data, forma, passageiro:passageiro_id(excursao_id)"),
+    supabase
+      .from("despesa")
+      .select("valor, data, excursao_id, nome, categoria_id, categoria:categoria_id(nome, cor)"),
+    supabase.from("passageiro").select("id, excursao_id, valor_total, cliente:cliente_id(nome)"),
     supabase
       .from("v_passageiro_saldo")
-      .select("passageiro_id, excursao_id, saldo, status_pagamento"),
+      .select("passageiro_id, excursao_id, valor_pago, saldo, status_pagamento"),
+    supabase.from("v_parcela_saldo").select("passageiro_id, vencimento, valor, saldo, status"),
     supabase
-      .from("v_parcela_saldo")
-      .select("passageiro_id, vencimento, saldo, status")
-      .neq("status", "paga"),
+      .from("passeio")
+      .select(
+        "nome, data, excursao_id, participantes:passeio_participante(valor, pago)",
+      ),
   ]);
-  for (const e of [e1, e2, e3, e4, e5, e6, e7]) if (e) throw e;
+  for (const e of [e1, e2, e3, e4, e5, e6, e7, e8]) if (e) throw e;
 
   const excursoes: ExcursaoRef[] = (exc ?? []).map((r) => ({
     id: r.id as string,
@@ -115,21 +155,29 @@ export async function getDatasetRelatorios(): Promise<DatasetRelatorios> {
     };
   });
 
-  const pagamentos: MovimentoExcursao[] = (pags ?? []).map((r) => {
+  const pagamentos: PagamentoMov[] = (pags ?? []).map((r) => {
     // passageiro vem como objeto (ou array) do join — normaliza.
     const p = Array.isArray(r.passageiro) ? r.passageiro[0] : r.passageiro;
     return {
       valor: Number(r.valor),
       data: (r.data as string) ?? null,
       excursao_id: (p?.excursao_id as string) ?? "",
+      forma: (r.forma as string) ?? null,
     };
   });
 
-  const despesas: MovimentoExcursao[] = (desp ?? []).map((r) => ({
-    valor: Number(r.valor),
-    data: (r.data as string) ?? null,
-    excursao_id: r.excursao_id as string,
-  }));
+  const despesas: DespesaMov[] = (desp ?? []).map((r) => {
+    const cat = Array.isArray(r.categoria) ? r.categoria[0] : r.categoria;
+    return {
+      valor: Number(r.valor),
+      data: (r.data as string) ?? null,
+      excursao_id: r.excursao_id as string,
+      nome: r.nome as string,
+      categoria_id: (r.categoria_id as string) ?? null,
+      categoria_nome: (cat?.nome as string) ?? "Sem categoria",
+      categoria_cor: (cat?.cor as string) ?? COR_FALLBACK,
+    };
+  });
 
   const nomeByPax = new Map<string, string>();
   const excByPax = new Map<string, string>();
@@ -138,23 +186,44 @@ export async function getDatasetRelatorios(): Promise<DatasetRelatorios> {
     nomeByPax.set(p.id as string, (cli?.nome as string) ?? "—");
     excByPax.set(p.id as string, p.excursao_id as string);
   }
+  const totalByPax = new Map(
+    (pax ?? []).map((p) => [p.id as string, Number(p.valor_total)]),
+  );
 
   const passageiros: PassageiroStatusRow[] = (saldos ?? []).map((s) => ({
     passageiro_id: s.passageiro_id as string,
     excursao_id: s.excursao_id as string,
     nome: nomeByPax.get(s.passageiro_id as string) ?? "—",
+    valor_total: totalByPax.get(s.passageiro_id as string) ?? 0,
+    valor_pago: Number(s.valor_pago),
     saldo: Number(s.saldo),
     status_pagamento: s.status_pagamento as StatusPagamento,
   }));
 
-  const parcelasAbertas: ParcelaAbertaRow[] = (parc ?? []).map((r) => ({
+  const parcelas: ParcelaRow[] = (parc ?? []).map((r) => ({
     passageiro_id: r.passageiro_id as string,
     excursao_id: excByPax.get(r.passageiro_id as string) ?? "",
     nome: nomeByPax.get(r.passageiro_id as string) ?? "—",
     vencimento: (r.vencimento as string) ?? null,
+    valor: Number(r.valor),
     saldo: Number(r.saldo),
-    status: r.status as ParcelaAbertaRow["status"],
+    status: r.status as StatusParcela,
   }));
 
-  return { excursoes, resumos, pagamentos, despesas, passageiros, parcelasAbertas };
+  // Um PasseioMov por participante PAGO (entra e depois é repassado).
+  const passeios: PasseioMov[] = [];
+  for (const r of pass ?? []) {
+    const parts = (r.participantes ?? []) as { valor: number; pago: boolean }[];
+    for (const pt of parts) {
+      if (!pt.pago) continue;
+      passeios.push({
+        valor: Number(pt.valor),
+        data: (r.data as string) ?? null,
+        excursao_id: r.excursao_id as string,
+        passeio_nome: r.nome as string,
+      });
+    }
+  }
+
+  return { excursoes, resumos, pagamentos, despesas, passeios, passageiros, parcelas };
 }

@@ -8,6 +8,10 @@ import { PERIODOS, type PeriodoPreset } from "@/lib/metricas";
 import { getDatasetRelatorios, type DatasetRelatorios } from "@/lib/relatorios";
 import { FiltrosBar } from "@/components/relatorios/filtros-bar";
 import { VisaoGeral } from "@/components/relatorios/secoes/visao-geral";
+import { Financeiro } from "@/components/relatorios/secoes/financeiro";
+import { Excursoes } from "@/components/relatorios/secoes/excursoes";
+import { Pagamentos } from "@/components/relatorios/secoes/pagamentos";
+import { Despesas } from "@/components/relatorios/secoes/despesas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type TabId = "visao" | "financeiro" | "excursoes" | "pagamentos" | "despesas";
@@ -107,30 +111,21 @@ function RelatoriosView() {
               <VisaoGeral dataset={dataset} periodo={periodo} excursaoId={excursaoId} />
             </TabsContent>
             <TabsContent value="financeiro">
-              <EmBreve titulo="Financeiro" />
+              <Financeiro dataset={dataset} periodo={periodo} excursaoId={excursaoId} />
             </TabsContent>
             <TabsContent value="excursoes">
-              <EmBreve titulo="Excursões" />
+              <Excursoes dataset={dataset} excursaoId={excursaoId} />
             </TabsContent>
             <TabsContent value="pagamentos">
-              <EmBreve titulo="Pagamentos" />
+              <Pagamentos dataset={dataset} excursaoId={excursaoId} />
             </TabsContent>
             <TabsContent value="despesas">
-              <EmBreve titulo="Despesas" />
+              <Despesas dataset={dataset} periodo={periodo} excursaoId={excursaoId} />
             </TabsContent>
           </>
         )}
       </Tabs>
     </main>
-  );
-}
-
-function EmBreve({ titulo }: { titulo: string }) {
-  return (
-    <div className="glass-card glass-card-softer mt-2 rounded-lg px-5 py-12 text-center">
-      <p className="text-sm font-medium text-foreground">{titulo}</p>
-      <p className="mt-1 text-xs text-muted-foreground">Em breve — próxima fase do módulo.</p>
-    </div>
   );
 }
 

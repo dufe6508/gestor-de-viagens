@@ -18,6 +18,7 @@ import {
 import {
   filtrarPorExcursao,
   hojeISO,
+  parcelasAbertas,
   type DatasetRelatorios,
 } from "@/lib/relatorios";
 import { KpiCard } from "@/components/relatorios/kpi-card";
@@ -48,7 +49,7 @@ export function VisaoGeral({
     const pagamentos = filtrarPorExcursao(dataset.pagamentos, excursaoId);
     const despesas = filtrarPorExcursao(dataset.despesas, excursaoId);
     const passageiros = filtrarPorExcursao(dataset.passageiros, excursaoId);
-    const parcelas = filtrarPorExcursao(dataset.parcelasAbertas, excursaoId);
+    const parcelas = filtrarPorExcursao(parcelasAbertas(dataset.parcelas), excursaoId);
 
     // Consolidado (acumulado, não recortado por período — é a foto de agora).
     const aReceber = resumos.reduce((s, r) => s + r.total_a_receber, 0);

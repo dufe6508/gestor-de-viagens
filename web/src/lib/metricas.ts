@@ -115,6 +115,37 @@ export function ultimasChavesMes(hoje: string, n: number): string[] {
   return Array.from({ length: n }, (_, i) => chaveMes(isoEm(y, m - (n - 1 - i), 1)));
 }
 
+// Próximos n meses (inclui o corrente), chaves ascendentes — base do forecast.
+export function proximasChavesMes(hoje: string, n: number): string[] {
+  const [y, m] = partes(hoje);
+  return Array.from({ length: n }, (_, i) => chaveMes(isoEm(y, m + i, 1)));
+}
+
+// Dias inteiros de `de` até `ate` (positivo se ate > de).
+export function diasEntre(de: string, ate: string): number {
+  const a = new Date(de + "T00:00:00Z").getTime();
+  const b = new Date(ate + "T00:00:00Z").getTime();
+  return Math.round((b - a) / 86_400_000);
+}
+
+// Bucket de atraso (aging) a partir dos dias vencidos. Ordem = severidade.
+export type AgingBucket = "1-7" | "8-30" | "30+";
+export function agingBucket(diasVencido: number): AgingBucket {
+  if (diasVencido <= 7) return "1-7";
+  if (diasVencido <= 30) return "8-30";
+  return "30+";
+}
+
+// Classifica um vencimento em relação a hoje (agenda de cobrança).
+export type FaixaVencimento = "atrasada" | "semana" | "mes" | "depois";
+export function faixaVencimento(vencimento: string, hoje: string): FaixaVencimento {
+  if (vencimento < hoje) return "atrasada";
+  const d = diasEntre(hoje, vencimento);
+  if (d <= 7) return "semana";
+  if (d <= 30) return "mes";
+  return "depois";
+}
+
 export function somaPorMes(items: Movimento[], chaves: string[]): number[] {
   const idx = new Map(chaves.map((c, i) => [c, i]));
   const out = chaves.map(() => 0);
