@@ -21,7 +21,9 @@ sem abrir Excel, sem pular entre telas.
    (ex.: "Recebido em julho: R$ 12.300 — 40% acima de junho").
 3. **Regras financeiras travadas são lei** (RASCUNHO §6/§11):
    - **Lucro = saldo_caixa = total_recebido − total_despesas** — nunca usa "a receber".
-   - **Passeio é neutro** — aparece em relatório operacional, nunca infla lucro.
+   - **Passeio = fluxo de caixa puro** (decisão usuário 2026-07-06): dinheiro que entra e
+     é repassado à agência. Aparece nos relatórios de caixa como **entrada + saída (repasse)**,
+     e **nunca infla o lucro** (os dois lados se anulam — coerente com a view atual).
    - **origem_recurso é informativo** — pode segmentar gráfico, não muda nenhum número.
 4. **Escala real do negócio:** 1 usuária, ~4 excursões/ano, dezenas–centenas de passageiros,
    celular. Isso permite agregação no cliente (padrão já usado em `despesas.ts`) e **proíbe**
@@ -166,8 +168,12 @@ Pergunta: **"como o dinheiro se move no tempo?"**
    igual ao realizado); linha de caixa projetado acumulado. É a resposta de
    "qual o faturamento previsto para os próximos meses?".
 5. **Mix de formas de pagamento** (Pix/dinheiro/cartão) — proportion bar (componente existente).
-6. Tabela **extrato unificado** (camada 5): pagamentos + despesas intercalados por data,
-   com busca — o "livro-caixa" exportável.
+6. **Passeios no caixa (pass-through):** entradas de participantes pagos e o repasse à agência
+   entram no fluxo como linhas espelhadas (entra → sai), rotuladas "passeio", líquido ~zero.
+   ⚠️ Limitação de dado: `passeio_participante` tem só o bool `pago` (sem data de pagamento) —
+   na série temporal, o passeio entra pela **data do passeio** (ou balde "sem data").
+7. Tabela **extrato unificado** (camada 5): pagamentos + despesas + repasses de passeio
+   intercalados por data, com busca — o "livro-caixa" da empresa.
 
 ### Aba 3 — Excursões
 
@@ -289,11 +295,26 @@ web/src/
 └─ app/relatorios/page.tsx # shell: tabs + filtros + renderiza seções
 ```
 
+**Dashboards editáveis (decisão usuário 2026-07-06):**
+
+Cada aba é declarada como uma **lista de widgets registrados** (`{ id, titulo, componente }`),
+não JSX fixo. Sobre esse registry entra um modo **"Personalizar"** (botão no header da aba):
+
+- **Reordenar** widgets (setas ↑/↓ ou arrastar pelo handle — mobile-first, sem grid livre);
+- **Ocultar/exibir** widgets (toggle por item);
+- Preferências salvas por aba em `localStorage` no MVP (1 usuária, 1 celular);
+  o formato `{ tab: [{ id, visivel }] }` migra depois para uma tabela `preferencia_usuario`
+  no Supabase (multi-dispositivo/multi-usuário) sem mudar a UI.
+- Widget novo lançado em versão futura aparece automaticamente no fim da lista (merge
+  registry × preferência por `id` — preferência não conhece o widget → visível por padrão).
+- Botão "Restaurar padrão" por aba.
+
 **Por que escala:**
 
 - **Novo indicador** = 1 função pura em `metricas.ts` + 1 `<KpiCard>`; **novo gráfico** =
   1 componente consumindo dataset existente; **nova aba** = 1 arquivo em `secoes/` +
-  entrada no array de tabs. Nada acoplado.
+  entrada no array de tabs; **novo widget** = 1 entrada no registry (já nasce
+  personalizável). Nada acoplado.
 - **Datasets brutos separados das fórmulas**: quando ônibus/quartos/metas existirem,
   entram como novo dataset + novas fórmulas, sem tocar no resto.
 - **Agregação no cliente** (decisão consciente): ~4 excursões/ano ⇒ centenas de linhas por
@@ -302,14 +323,19 @@ web/src/
 - Carregamento por aba (lazy): abrir Relatórios busca só o que a aba ativa precisa.
 - Skeletons + empty states por card (padrão já existente nas telas).
 
-**O que NÃO fazer (anti-over-engineering):** dashboard configurável drag-and-drop, cache de
-agregados, biblioteca de charts pesada, relatório agendado/e-mail, IA gerando insight em texto
-livre. Nada disso serve a 1 usuária no celular — os "resumos automáticos" do §5 são
-regras determinísticas simples (Δ%, maior categoria, contagens), não IA.
+**O que NÃO fazer (anti-over-engineering):** grid livre estilo BI corporativo (redimensionar
+células, múltiplos dashboards salvos) — a personalização se limita a reordenar/ocultar
+widgets, que cobre a necessidade real; cache de agregados; biblioteca de charts pesada;
+relatório agendado/e-mail; IA gerando insight em texto livre. Os "resumos automáticos" do
+§5 são regras determinísticas simples (Δ%, maior categoria, contagens), não IA.
 
 ---
 
-## 8. Exportação (planejada em fases)
+## 8. Exportação — **ADIADA** (decisão usuário 2026-07-06)
+
+Fica fora do escopo inicial do módulo. O desenho abaixo permanece como referência para
+quando for ativada — a arquitetura (datasets separados em `lib/relatorios.ts`) já deixa
+tudo pronto para exportar sem refatorar. O botão "Exportar" **não** entra na UI por ora.
 
 | Fase | Formato | Técnica | Esforço |
 |---|---|---|---|
@@ -318,8 +344,8 @@ regras determinísticas simples (Δ%, maior categoria, contagens), não IA.
 | E3 | **Excel real (.xlsx)** multi-abas (uma planilha = o antigo Excel dela, gerado pelo sistema) | SheetJS/exceljs client-side | médio |
 | E4 | PDF composto (capa + gráficos) e **compartilhar no APK** (Capacitor Share/Filesystem) | jsPDF + plugin Capacitor | médio, junto da fase Capacitor |
 
-Botão único **Exportar** no header abre sheet com as opções disponíveis no contexto
-(aba + filtros aplicados). CSV sai com separador `;` e vírgula decimal (Excel pt-BR).
+Quando ativada: botão único **Exportar** no header abre sheet com as opções disponíveis no
+contexto (aba + filtros aplicados). CSV com separador `;` e vírgula decimal (Excel pt-BR).
 
 ---
 
@@ -327,15 +353,17 @@ Botão único **Exportar** no header abre sheet com as opções disponíveis no 
 
 | Fase | Entrega | Valor |
 |---|---|---|
-| **F0** | Fundação: rota `/relatorios`, tabs, filtros globais ↔ URL, `relatorios.ts` + `metricas.ts` com testes, `KpiCard`/`ChartCard` | esqueleto navegável |
+| **F0** | Fundação: rota `/relatorios`, tabs, filtros globais ↔ URL, `relatorios.ts` + `metricas.ts` com testes, `KpiCard`/`ChartCard` + **registry de widgets** | esqueleto navegável |
 | **F1** | **Visão geral** completa (herói, KPIs, sparkline, atenção, ranking) + ligar item da bottom nav | a empresa em 10 segundos |
 | **F2** | **Pagamentos** (agenda de vencimentos, vencidas, devedores) | ataca a dor nº 1 (cobrança) |
-| **F3** | **Financeiro** (fluxo mensal, evolução, **forecast**, extrato) | visão de caixa e futuro |
+| **F3** | **Financeiro** (fluxo mensal c/ passeios pass-through, evolução, **forecast**, extrato) | visão de caixa e futuro |
 | **F4** | **Excursões** (comparativo + raio-X) e **Despesas** (donut, evolução, top 10) | análise profunda |
-| **F5** | Exportação E1+E2 (CSV + impressão) | substituição total da planilha |
-| Depois | Operacional (ônibus/quartos), E3/E4, metas/orçamento, light theme | evolução contínua |
+| **F5** | **Personalização dos dashboards** (modo editar: reordenar/ocultar widgets, restaurar padrão) | dashboards editáveis |
+| Depois | Exportação (§8, adiada), Operacional (ônibus/quartos), metas/orçamento, light theme | evolução contínua |
 
 Ordem F2 antes de F3 é proposital: cobrança gera dinheiro; gráfico bonito não.
+Personalização por último de propósito: primeiro os widgets existem (F1–F4) já montados
+sobre o registry (F0), depois ganham edição — nenhum retrabalho.
 Cada fase é revisável e utilizável sozinha.
 
 ## 9.1 Evoluções registradas (fora do escopo inicial)
@@ -364,16 +392,21 @@ Cada fase é revisável e utilizável sozinha.
 - ✅ Coerência com o design system verificada: tokens, tipografia money, charts SVG próprios,
   bottom nav + sheets, mobile-first.
 
-**Decisões que precisam do usuário antes de implementar:**
+**Decisões já tomadas pelo usuário (2026-07-06):**
+
+- ✅ **Dashboards editáveis** — modo personalizar (reordenar/ocultar widgets) via registry (§7),
+  entregue na F5.
+- ✅ **Exportação ADIADA** — fora do escopo inicial; desenho preservado no §8 p/ o futuro.
+- ✅ **Passeios = fluxo de caixa puro** — entram nos relatórios de caixa como entrada + repasse
+  (espelhados, líquido ~zero), nunca no lucro. Deixam de ser "só bloco operacional".
+
+**Decisões ainda em aberto:**
 
 1. **Navegação:** Relatórios continua no sheet "Mais" (como hoje) ou entra na bottom nav
    (ex.: Início · Passageiros · Despesas · **Relatórios** · Mais)? *(Recomendo promover à
    barra — é a tela de maior valor estratégico.)*
 2. **Período padrão** ao abrir: "Este ano" (recomendado) ou "Tudo"?
-3. **Exportação prioritária:** a tia precisa mais de CSV/Excel ou de imprimir/PDF? (define
-   se E1 ou E2 vem primeiro na F5.)
-4. **Despesa sem data:** ok tornar `hoje` o valor sugerido no formulário de despesa?
-5. Confirmar que **passeios ficam fora dos números financeiros** dos relatórios (aparecendo
-   só como bloco operacional no raio-X da excursão) — coerente com a regra "neutro".
+3. **Despesa sem data:** ok tornar `hoje` o valor sugerido no formulário de despesa?
+   (fortalece os gráficos temporais)
 
 Aprovado o plano (com as respostas acima), a implementação começa pela F0/F1.
