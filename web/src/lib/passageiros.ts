@@ -71,9 +71,13 @@ export async function listPassageiros(excursaoId: string): Promise<PassageiroRow
   });
 }
 
-export async function addPassageiro(excursaoId: string, nome: string): Promise<void> {
+export async function addPassageiro(
+  excursaoId: string,
+  nome: string,
+  valorTotal = 0,
+): Promise<void> {
   const empresa_id = await getEmpresaId();
-  // Cria o cliente e o vincula à excursão numa inscrição (valor definido depois).
+  // Cria o cliente e o vincula à excursão numa inscrição.
   const { data: cli, error: e1 } = await supabase
     .from("cliente")
     .insert({ empresa_id, nome })
@@ -83,7 +87,7 @@ export async function addPassageiro(excursaoId: string, nome: string): Promise<v
   const { error: e2 } = await supabase.from("passageiro").insert({
     excursao_id: excursaoId,
     cliente_id: cli.id,
-    valor_total: 0,
+    valor_total: valorTotal,
   });
   if (e2) throw e2;
 }

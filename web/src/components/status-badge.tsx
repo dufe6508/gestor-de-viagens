@@ -44,10 +44,10 @@ export function StatusBadge({ kind, className = "" }: { kind: StatusKind; classN
   const s = STYLE[kind];
   return (
     <span
-      className={`inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-medium leading-none whitespace-nowrap ${s.cls} ${className}`}
+      className={`inline-flex h-6 shrink-0 items-center justify-center gap-1.5 rounded-full px-2.5 text-[11px] leading-none font-medium whitespace-nowrap ${s.cls} ${className}`}
     >
       <span className="size-1.5 shrink-0 rounded-full bg-current opacity-90" aria-hidden />
-      {s.label}
+      <span className="leading-none">{s.label}</span>
     </span>
   );
 }

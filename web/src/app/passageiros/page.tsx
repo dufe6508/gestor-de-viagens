@@ -64,6 +64,11 @@ const ORDENS = [
 
 const PAGE_SIZE = 20;
 
+// Categoria no cadastro (opcional). Sem categoria = vaga normal.
+type Tipo = "familia" | "infantil";
+const VALOR_NORMAL = 1450;
+const VALOR_TIPO: Record<Tipo, number> = { familia: 650, infantil: 0 };
+
 // "YYYY-MM-DD" → "dd/mm"
 const ddmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 
@@ -95,6 +100,7 @@ function PassageirosView() {
   // novo passageiro
   const [novoOpen, setNovoOpen] = useState(false);
   const [nome, setNome] = useState("");
+  const [tipo, setTipo] = useState<Tipo | null>(null);
   const [salvando, setSalvando] = useState(false);
   const nomeRef = useRef<HTMLInputElement>(null);
 
@@ -222,11 +228,13 @@ function PassageirosView() {
 
   async function adicionar(continuar: boolean) {
     if (!nome.trim()) return toast.error("Informe o nome");
+    const valor = tipo ? VALOR_TIPO[tipo] : VALOR_NORMAL;
     setSalvando(true);
     try {
-      await addPassageiro(excursaoId, nome.trim());
+      await addPassageiro(excursaoId, nome.trim(), valor);
       toast.success(`${nome.trim()} adicionado`);
       setNome("");
+      setTipo(null);
       if (continuar) nomeRef.current?.focus();
       else setNovoOpen(false);
       load();
@@ -438,7 +446,7 @@ function PassageirosView() {
                               else setDetalheId(p.id);
                             }
                           }}
-                          className={`flex min-h-[68px] cursor-pointer items-center gap-3.5 px-4 py-3.5 outline-none transition-colors duration-150 hover:bg-white/[0.025] focus-visible:bg-white/[0.05] ${
+                          className={`flex min-h-[80px] cursor-pointer items-center gap-3.5 px-4 py-4 outline-none transition-colors duration-150 hover:bg-white/[0.025] focus-visible:bg-white/[0.05] ${
                             marcado ? "bg-white/[0.05]" : ""
                           }`}
                         >
@@ -457,20 +465,16 @@ function PassageirosView() {
                             </span>
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="truncate text-[15px] font-medium">{p.nome}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="min-w-0 flex-1 truncate text-[15px] font-medium">
+                                {p.nome}
+                              </span>
                               <StatusBadge kind={kind} />
                             </div>
-                            <div className="mt-1.5 flex items-center justify-between gap-2 text-[13px]">
-                              <span className="money truncate">
-                                {quitado ? (
-                                  <span className="text-faint">{brl(p.valor_total)}</span>
-                                ) : (
-                                  <>
-                                    <span className="text-foreground">{brl(p.saldo)}</span>
-                                    <span className="text-faint"> / {brl(p.valor_total)}</span>
-                                  </>
-                                )}
+                            <div className="mt-2 flex items-center justify-between gap-3 text-[13px]">
+                              <span className="money shrink-0 whitespace-nowrap">
+                                <span className="text-foreground">{brl(p.valor_pago)}</span>
+                                <span className="text-faint"> / {brl(p.valor_total)}</span>
                               </span>
                               {!quitado && p.proximo_vencimento && (
                                 <span className={`shrink-0 tabular-nums ${vencCor}`}>
@@ -556,22 +560,61 @@ function PassageirosView() {
       )}
 
       {/* Novo passageiro — cadastro em série */}
-      <Dialog open={novoOpen} onOpenChange={setNovoOpen}>
+      <Dialog
+        open={novoOpen}
+        onOpenChange={(o) => {
+          setNovoOpen(o);
+          if (!o) setTipo(null);
+        }}
+      >
         <DialogContent variant="sheet">
           <DialogHeader>
             <DialogTitle>Novo passageiro</DialogTitle>
           </DialogHeader>
-          <div className="space-y-1.5 py-1">
-            <Label htmlFor="p-nome">Nome</Label>
-            <Input
-              id="p-nome"
-              ref={nomeRef}
-              placeholder="Ex: Maria da Silva"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && adicionar(true)}
-              autoFocus
-            />
+          <div className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="p-nome">Nome</Label>
+              <Input
+                id="p-nome"
+                ref={nomeRef}
+                placeholder="Ex: Maria da Silva"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && adicionar(true)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Categoria (opcional)</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["familia", "infantil"] as Tipo[]).map((t) => {
+                  const ativo = tipo === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setTipo((cur) => (cur === t ? null : t))}
+                      aria-pressed={ativo}
+                      className={`flex flex-col items-start gap-0.5 rounded-lg border px-3.5 py-3 text-left transition-colors ${
+                        ativo
+                          ? "border-primary bg-white/[0.06]"
+                          : "border-border hover:bg-white/[0.03]"
+                      }`}
+                    >
+                      <span className="text-sm font-medium">
+                        {t === "familia" ? "Família" : "Infantil"}
+                      </span>
+                      <span className="money text-xs text-faint">
+                        {VALOR_TIPO[t] > 0 ? brl(VALOR_TIPO[t]) : "Grátis"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-faint">
+                Sem categoria = vaga normal ({brl(VALOR_NORMAL)}). Ajustável depois.
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="secondary" disabled={salvando} onClick={() => adicionar(true)}>
