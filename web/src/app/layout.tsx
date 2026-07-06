@@ -18,7 +18,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gestor de Excursões",
+  title: "Gerenciador de Viagens",
   description: "Controle financeiro de excursões",
 };
 

@@ -32,7 +32,7 @@ export async function verificarBiometria(): Promise<boolean> {
   if (!biometriaSuportada()) return true; // web: nada a verificar
   try {
     await NativeBiometric.verifyIdentity({
-      title: "Gestor de Excursões",
+      title: "Gerenciador de Viagens",
       reason: "Confirme sua identidade para entrar",
     });
     return true;

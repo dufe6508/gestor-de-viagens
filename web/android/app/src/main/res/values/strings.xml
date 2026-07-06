@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Gestor de Excursões</string>
-    <string name="title_activity_main">Gestor de Excursões</string>
+    <string name="app_name">Gerenciador de Viagens</string>
+    <string name="title_activity_main">Gerenciador de Viagens</string>
     <string name="package_name">com.gestordeexcursoes.app</string>
     <string name="custom_url_scheme">com.gestordeexcursoes.app</string>
 </resources>

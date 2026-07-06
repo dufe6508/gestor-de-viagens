@@ -51,6 +51,8 @@ android/build/
 android/local.properties
 android/captures/
 android/.idea/
+# Android Studio abre acidentalmente a raiz web/ em vez de web/android/
+/.idea/
 *.keystore
 *.jks
 android/app/src/main/assets/public/
