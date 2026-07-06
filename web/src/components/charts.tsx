@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { brl } from "@/lib/format";
+import { brl, brlCompact } from "@/lib/format";
 
 /*
  * Linguagem única de gráfico — DESIGN.md §6.
@@ -261,7 +261,7 @@ export function OverviewBars({ bars, height = 190 }: { bars: OverviewBar[]; heig
                       className="money absolute -top-5 left-1/2 -translate-x-1/2 text-[11px] font-semibold whitespace-nowrap tabular-nums"
                       style={{ color: b.cor }}
                     >
-                      {brl(b.value)}
+                      {brlCompact(b.value)}
                     </span>
                   </div>
                 </div>
