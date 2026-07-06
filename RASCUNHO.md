@@ -310,7 +310,14 @@ empresa
 - [x] Projeto Supabase criado: `gestor-excursoes` (ref `mzdlcqmufybgddfafixn`, região sa-east-1)
 - [x] Migration aplicada: 15 tabelas + 2 views + RLS. Advisors ERROS resolvidos (views security_invoker)
 - [x] `.env.local` com URL + chave publishable
-- [~] **Auth DESABILITADO (dev)**. RLS liberado p/ `anon`. ⚠️ REATIVAR antes de dado real/produção.
+- [x] **Auth REATIVADO (2026-07-06).** Supabase Auth (email/senha + Google + sessão anônima "Teste"),
+  100% client-side (combina com `output: export`). RLS isola por empresa: 1 usuário = 1 empresa
+  (`empresa.owner_id → auth.users`), dados fictícios viram empresa `is_demo` (sandbox gravável do
+  botão Teste). Escopo via helpers SECURITY DEFINER `minhas_empresas()`/`minhas_excursoes()`/
+  `meus_passageiros()` (cadeia empresa→excursao→passageiro). `anon` sem acesso. Código:
+  `lib/auth.ts`, `components/auth-gate.tsx`, `getEmpresaId()` por usuário em `lib/data.ts`.
+  ⚠️ **Painel Supabase (manual):** ligar Anonymous sign-ins, provider Google, e DESLIGAR
+  "Confirm email" (Auth → Providers/Settings). Google nativo (Capacitor) exige deep link no APK.
 - [x] shadcn/ui + IBM Plex Sans + tokens (verde saldo / vermelho dívida) + Toaster
 - [x] Tela 1: lista de excursões + criar (`/`)
 - [x] Módulo Passageiros v2 (2026-07-06, substitui a antiga `/excursao?id=`):
@@ -334,10 +341,9 @@ empresa
 - [ ] Módulos restantes: ônibus/quartos (alocação)
 - [ ] Integrar Capacitor → gerar APK (fase final)
 
-> Nota RLS: política `USING(true)` p/ `authenticated` = WARN intencional. Só a tia tem conta no MVP.
-> Upgrade multi-empresa: trocar por `empresa_id = empresa_do_usuario()`.
-> Nota Auth: como RLS só libera `authenticated`, o app PRECISA de login já no MVP
-> (senão a chave pública anon não lê nada — o que é o correto p/ proteger dado financeiro).
+> Nota RLS (2026-07-06): isolamento por empresa via `minhas_empresas()` (própria + demo).
+> Advisors: 3 WARN "SECURITY DEFINER executável por authenticated" nos 3 helpers = intencional
+> (o motor de RLS precisa; retornam só o escopo do próprio caller, não vazam dado). `anon` revogado.
 
 ## 8. Fora do MVP (registrar p/ depois)
 

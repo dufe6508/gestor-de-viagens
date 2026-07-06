@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Fingerprint } from "lucide-react";
+import { ArrowLeft, Fingerprint, LogOut } from "lucide-react";
 import {
   biometriaAtiva,
   biometriaDisponivelNoAparelho,
@@ -11,7 +11,9 @@ import {
   setBiometriaAtiva,
   verificarBiometria,
 } from "@/lib/biometria";
+import { signOut } from "@/lib/auth";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 
 export default function ConfiguracoesPage() {
   const [ativa, setAtiva] = useState(false);
@@ -73,6 +75,14 @@ export default function ConfiguracoesPage() {
           />
         </div>
       </section>
+
+      <Button
+        variant="outline"
+        className="mt-4 w-full"
+        onClick={() => signOut()}
+      >
+        <LogOut className="size-4" strokeWidth={1.75} /> Sair
+      </Button>
     </main>
   );
 }

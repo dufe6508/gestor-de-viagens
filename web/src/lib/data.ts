@@ -1,14 +1,25 @@
 import { supabase } from "./supabase";
 import type { Excursao, ResumoExcursao } from "./types";
 
-// MVP: uma empresa. Busca (e memoiza) o id da única empresa.
+// Empresa do usuário logado (própria se real; a demo se sessão anônima/teste).
+// Memoiza por sessão — resetEmpresaCache() ao trocar de login/logout.
 let empresaIdCache: string | null = null;
 export async function getEmpresaId(): Promise<string> {
   if (empresaIdCache) return empresaIdCache;
-  const { data, error } = await supabase.from("empresa").select("id").limit(1).single();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+  const q = supabase.from("empresa").select("id");
+  const { data, error } = await (user.is_anonymous
+    ? q.eq("is_demo", true)
+    : q.eq("owner_id", user.id)
+  ).single();
   if (error) throw error;
   empresaIdCache = data.id;
   return data.id;
+}
+
+export function resetEmpresaCache(): void {
+  empresaIdCache = null;
 }
 
 export async function listExcursoes(): Promise<Excursao[]> {

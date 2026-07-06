@@ -3,6 +3,7 @@ import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { BottomNav } from "@/components/bottom-nav";
 import { BiometricGate } from "@/components/biometric-gate";
+import { AuthGate } from "@/components/auth-gate";
 import "./globals.css";
 
 const sans = IBM_Plex_Sans({
@@ -37,10 +38,12 @@ export default function RootLayout({
       className={`dark ${sans.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background">
-        <BiometricGate>
-          {children}
-          <BottomNav />
-        </BiometricGate>
+        <AuthGate>
+          <BiometricGate>
+            {children}
+            <BottomNav />
+          </BiometricGate>
+        </AuthGate>
         <Toaster richColors position="top-center" />
       </body>
     </html>

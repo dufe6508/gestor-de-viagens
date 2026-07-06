@@ -8,7 +8,7 @@ App financeiro para empresa de excursões. Substitui planilhas Excel. Uso solo (
 
 - Fase: MVP em construção. Prontos: excursões, dashboard, passageiros/parcelas/pagamentos, despesas, passeios.
 - Falta: ônibus/quartos (alocação), Capacitor/APK.
-- ⚠️ **Auth DESABILITADO em dev.** RLS liberado p/ `anon`. REATIVAR antes de dado real. Ver §12 do RASCUNHO.
+- **Auth ATIVO** (Supabase Auth, client-side). 1 usuário = 1 empresa (`owner_id`); RLS isola por empresa; dados fictícios = empresa `is_demo` (botão Teste). Login em `lib/auth.ts` + `components/auth-gate.tsx`. Falta config manual no painel Supabase (anon sign-in, Google, confirm email off). Ver §12 do RASCUNHO.
 
 ## Estrutura
 
