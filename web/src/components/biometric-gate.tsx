@@ -2,15 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { Fingerprint } from "lucide-react";
-import { biometriaAtiva, biometriaSuportada, verificarBiometria } from "@/lib/biometria";
-import { initPushNotifications } from "@/lib/notificacoes";
+import {
+  biometriaAtiva,
+  biometriaSuportada,
+  setBiometriaAtiva,
+  verificarBiometria,
+} from "@/lib/biometria";
 import { Button } from "@/components/ui/button";
 
 type Estado = "verificando" | "liberado" | "bloqueado";
 
+// Se a verificação nunca resolver (prompt travado, app em background), não
+// prende o usuário pra sempre numa tela em branco.
+const TIMEOUT_MS = 10_000;
+
 /*
  * Gate de entrada — só age em app nativo (Capacitor) e com a opção ligada em
  * Configurações. No navegador (biometriaSuportada() === false) libera direto.
+ *
+ * Sempre tem saída: se travar/falhar, "Entrar sem biometria" desliga a opção
+ * e libera na hora — nunca tranca o usuário fora do próprio app (a tela de
+ * Configurações que desativaria a opção fica DENTRO da árvore protegida, sem
+ * este botão não haveria como alcançá-la de volta).
  */
 export function BiometricGate({ children }: { children: React.ReactNode }) {
   const [estado, setEstado] = useState<Estado>("verificando");
@@ -21,14 +34,24 @@ export function BiometricGate({ children }: { children: React.ReactNode }) {
       return;
     }
     setEstado("verificando");
-    const ok = await verificarBiometria();
+    const timeout = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), TIMEOUT_MS));
+    const ok = await Promise.race([verificarBiometria(), timeout]);
     setEstado(ok ? "liberado" : "bloqueado");
+  }
+
+  function entrarSemBiometria() {
+    setBiometriaAtiva(false);
+    setEstado("liberado");
   }
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     tentar();
-    initPushNotifications();
+    // Push notifications: NÃO inicializar aqui. Requer projeto Firebase +
+    // google-services.json (ainda não configurado) — sem isso,
+    // FirebaseMessaging.getInstance() lança IllegalStateException nativa que
+    // o bridge do Capacitor relança sem tratamento, derrubando o app inteiro.
+    // Religar (lib/notificacoes.ts) só depois do Firebase configurado.
   }, []);
 
   if (estado === "liberado") return <>{children}</>;
@@ -46,7 +69,17 @@ export function BiometricGate({ children }: { children: React.ReactNode }) {
           {estado === "verificando" ? "Aguardando digital…" : "Toque para tentar novamente."}
         </p>
       </div>
-      {estado === "bloqueado" && <Button onClick={tentar}>Tentar novamente</Button>}
+      {estado === "bloqueado" && (
+        <div className="flex flex-col items-center gap-2">
+          <Button onClick={tentar}>Tentar novamente</Button>
+          <button
+            onClick={entrarSemBiometria}
+            className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+          >
+            Entrar sem biometria (desativa a opção)
+          </button>
+        </div>
+      )}
     </div>
   );
 }
