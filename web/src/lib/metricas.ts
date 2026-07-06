@@ -81,10 +81,11 @@ export function rangesDoPreset(preset: PeriodoPreset, hoje: string): Ranges {
   }
 }
 
-// Item sem data só conta quando o range é aberto ("Tudo") — dinheiro nunca some
-// em silêncio: telas que cortam por período devem exibir o balde "sem data".
+// Item SEM data conta em qualquer período — dinheiro nunca some em silêncio.
+// (Despesa tem data opcional; muitas ficam em branco. Excluí-las zeraria o
+//  relatório, então entram sempre — só as datadas respeitam o corte.)
 export function noRange(data: string | null, r: Range): boolean {
-  if (data == null) return r.de == null && r.ate == null;
+  if (data == null) return true;
   if (r.de != null && data < r.de) return false;
   if (r.ate != null && data > r.ate) return false;
   return true;

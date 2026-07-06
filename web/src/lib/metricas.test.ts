@@ -60,18 +60,19 @@ describe("noRange / somaNoRange", () => {
     expect(noRange("2026-08-01", range)).toBe(false);
   });
 
-  it("sem data só conta no range aberto (Tudo)", () => {
-    expect(noRange(null, range)).toBe(false);
+  it("sem data conta em qualquer período (dinheiro não some)", () => {
+    expect(noRange(null, range)).toBe(true);
     expect(noRange(null, { de: null, ate: null })).toBe(true);
   });
 
-  it("soma apenas o que cai no range", () => {
+  it("soma o que cai no range + os itens sem data", () => {
     const itens = [
       { valor: 100, data: "2026-07-05" },
       { valor: 50, data: "2026-06-05" },
       { valor: 7, data: null },
     ];
-    expect(somaNoRange(itens, range)).toBe(100);
+    // 100 (no range) + 7 (sem data, sempre conta); 50 fica de fora.
+    expect(somaNoRange(itens, range)).toBe(107);
     expect(somaNoRange(itens, { de: null, ate: null })).toBe(157);
   });
 });
