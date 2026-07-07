@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Plane, FlaskConical } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { App } from "@capacitor/app";
+import { Browser } from "@capacitor/browser";
 import { supabase } from "@/lib/supabase";
 import { resetEmpresaCache } from "@/lib/data";
 import {
@@ -40,7 +43,25 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       resolver(!!session);
     });
-    return () => sub.subscription.unsubscribe();
+
+    // APK: o Google volta por deep link (com.gestordeexcursoes.app://...?code=).
+    // Troca o code pela sessão e fecha o navegador; onAuthStateChange assume.
+    let removeDeepLink: (() => void) | undefined;
+    if (Capacitor.isNativePlatform()) {
+      App.addListener("appUrlOpen", async ({ url }) => {
+        if (!url.includes("code=")) return;
+        const { error } = await supabase.auth.exchangeCodeForSession(url);
+        await Browser.close().catch(() => {});
+        if (error) toast.error("Falha no login Google", { description: error.message });
+      }).then((h) => {
+        removeDeepLink = () => h.remove();
+      });
+    }
+
+    return () => {
+      sub.subscription.unsubscribe();
+      removeDeepLink?.();
+    };
   }, []);
 
   if (estado === "carregando") {

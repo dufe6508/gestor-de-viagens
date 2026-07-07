@@ -1,5 +1,11 @@
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
 import { supabase } from "./supabase";
 import { resetEmpresaCache } from "./data";
+
+// Esquema de deep link do APK (= appId). O listener em AuthGate captura o
+// redirect de volta e troca o code pela sessão.
+export const OAUTH_REDIRECT_NATIVE = "com.gestordeexcursoes.app://login-callback";
 
 export async function getSessionUser() {
   const { data } = await supabase.auth.getUser();
@@ -17,13 +23,18 @@ export async function signInEmail(email: string, senha: string) {
 }
 
 export async function signInGoogle() {
-  // Web: volta pra origem. Nativo (Capacitor) precisa de deep link — configurar
-  // quando gerar o APK (redirectTo com esquema do app).
-  const { error } = await supabase.auth.signInWithOAuth({
+  const native = Capacitor.isNativePlatform();
+  // Web: redireciona na própria aba. APK: abre navegador do sistema e volta via
+  // deep link (skipBrowserRedirect impede o webview de tentar navegar sozinho).
+  const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: window.location.origin },
+    options: {
+      redirectTo: native ? OAUTH_REDIRECT_NATIVE : window.location.origin,
+      skipBrowserRedirect: native,
+    },
   });
   if (error) throw error;
+  if (native && data?.url) await Browser.open({ url: data.url });
 }
 
 // Botão "Teste": sessão anônima que enxerga a empresa demo (dados fictícios).
